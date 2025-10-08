@@ -88,7 +88,34 @@ const login = async (req, res) => {
   }
 };
 
+const me = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await db('users').where({ id: decoded.id }).first();
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    res.json({
+      user: {
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        email: user.email,
+        gender: user.gender,
+        profile_photo: user.profile_photo,
+        role: user.role || 'user',
+      }
+    });
+
+  } catch (error) {
+    console.error('Auth me error:', error);
+    res.status(401).json({ message: 'Invalid or expired token' });
+  }
+};
 
 
 
-module.exports = { register, login };
+module.exports = { register, login, me };
