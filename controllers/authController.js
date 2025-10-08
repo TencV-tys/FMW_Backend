@@ -117,5 +117,14 @@ const me = async (req, res) => {
 };
 
 
+const logout = async (req,res) => {
+  res.clearCookie('token');
+  res.json(
+    {
+      message: "Logged out succesfully"
+    }
+  )
+};
 
-module.exports = { register, login, me };
+
+module.exports = { register, login, me , logout };
