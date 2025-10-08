@@ -42,26 +42,26 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // 1️⃣ Check if user exists
+    
     const user = await db('users').where({ email }).first();
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // 2️⃣ Validate password
+    
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // 3️⃣ Generate JWT token
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
-    // 4️⃣ Store token in secure cookie (no localStorage needed)
+    //  Store token in secure cookie (no localStorage needed)
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -69,7 +69,7 @@ const login = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
-    // 5️⃣ Send back success response
+   
     res.json({
       success: true,
       user: {
