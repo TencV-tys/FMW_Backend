@@ -3,7 +3,7 @@ const db = require('../config/db');
 const Post = {
 
      create: async (postData) => {
-        const [postId] = await db['posts'].insert({
+        const [postId] = await db('posts').insert({
             ...postData,
             status: 'Active'
         })
