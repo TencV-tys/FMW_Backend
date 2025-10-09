@@ -6,14 +6,14 @@ exports.up = function(knex) {
   
   return knex.schema.createTable('users', function(table) {
     table.increments('id').primary();
-    table.string('first_name').notNullable();
-    table.string('last_name').notNullable();
-    table.string('email').notNullable().unique();
-    table.string('password').notNullable();
-    table.string('gender').nullable();
-    table.string('phone');
+    table.string('first_name',50).notNullable();
+    table.string('last_name',50).notNullable();
+    table.string('email',100).notNullable().unique();
+    table.string('password',255).notNullable();
+    table.string('gender',10).nullable();
+    table.string('profile_photo',255);
+    table.enu('status',['active','suspended','banned']).defaultTo('active');
     table.enu('role', ['user', 'admin']).defaultTo('user');
-    table.string('profile_photo');
     table.timestamps(true, true); // created_at & updated_at
   });
 
