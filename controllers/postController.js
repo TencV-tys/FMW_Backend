@@ -7,6 +7,16 @@ const postController = {
    createPost: async(req,res) =>{
        try{
            const { title, description, type, category_id, barangay_id, color, contact_info } = req.body;
+    
+
+         // Validate required fields
+      if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
+        return res.status(400).json({
+          success: false,
+          error: 'All required fields must be filled'
+        });
+      }
+
 
          const postData = {
         user_id: req.user.id,
@@ -15,7 +25,7 @@ const postController = {
         type,
         category_id: parseInt(category_id),
         barangay_id: parseInt(barangay_id),
-        color,
+        color: color || '',
         contact_info,
         photo: req.file ? req.file.filename : null
       };

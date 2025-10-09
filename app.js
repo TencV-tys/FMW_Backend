@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const postRoutes = require('./routes/postRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const path = require('path');
 
 const app = express();
 
@@ -13,6 +14,10 @@ const app = express();
 app.use(cors({ origin: 'http://localhost:5173', credentials: true })); // React dev server
 app.use(express.json());
 app.use(cookieParser());
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Routes
 app.use('/auth', authRoutes);
