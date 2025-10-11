@@ -16,7 +16,7 @@ router.get('/posts/active', postController.getActivePosts);
 // Get user's own posts
 router.get('/posts/my-posts', authMiddleware, postController.getMyPosts);
 
-// 🎯 ADD THESE NEW ROUTES:
+
 
 // Delete post permanently
 router.delete('/posts/:id', authMiddleware, postController.deletePost);

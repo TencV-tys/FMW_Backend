@@ -65,7 +65,26 @@ resolvePost: async (req, res) => {
     console.error('Resolve post error:', error);
     res.status(500).json({ success: false, error: 'Server error resolving post' });
   }
-}
+},
+
+// Restore post (add this function)
+  restorePost: async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await db('posts')
+        .where('id', id)
+        .update({ 
+          status: 'active',  // Changed to lowercase
+          updated_at: new Date()
+        });
+        
+      res.json({ success: true, message: 'Post restored successfully' });
+    } catch (error) {
+      console.error('Restore post error:', error);
+      res.status(500).json({ success: false, error: 'Server error restoring post' });
+    }
+  },
 
 };
 

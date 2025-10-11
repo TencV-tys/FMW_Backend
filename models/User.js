@@ -12,7 +12,7 @@ const deleteUser = async (id) => {
   return db('users').where({id}).del();
 }
 
-// 🎯 NEW: Update user profile
+//  Update user profile
 const updateUser = async (id, updateData) => {
   return db('users')
     .where('id', id)

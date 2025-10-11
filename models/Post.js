@@ -10,7 +10,7 @@ const Post = {
     return postId;
   },
 
-  // 🎯 NEW: Get post by ID
+  // Get post by ID
   getById: async (id) => {
     return await db('posts')
       .where('posts.id', id)
@@ -24,7 +24,7 @@ const Post = {
       .first();
   },
 
-  // 🎯 NEW: Update post
+  // Update post
   update: async (id, updateData) => {
     return await db('posts')
       .where('id', id)
