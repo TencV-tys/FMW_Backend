@@ -1,12 +1,24 @@
 const express = require('express');
-
 const router = express.Router();
-
-const { getAllUsers, deleted } = require('../controllers/userController');
+const { 
+  getAllUsers, 
+  deleted, 
+  getUsersStats, 
+  updateUserStatus,
+  updateProfile,
+  getProfile
+} = require('../controllers/userController');
 const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
+const upload = require('../config/multer'); // Make sure multer is imported
 
+// 🎯 User profile routes (regular users)
+router.get('/users/profile', authMiddleware, getProfile);
+router.put('/users/profile', authMiddleware, upload.single('profile_photo'), updateProfile);
 
-router.get('/users',authMiddleware,adminMiddleware, getAllUsers);
-router.delete('/users/:id',authMiddleware,adminMiddleware, deleted);
+// 🎯 User management routes (admin only)
+router.get('/users', authMiddleware, adminMiddleware, getAllUsers);
+router.delete('/users/:id', authMiddleware, adminMiddleware, deleted);
+router.get('/users/stats', authMiddleware, adminMiddleware, getUsersStats);
+router.put('/users/:id/status', authMiddleware, adminMiddleware, updateUserStatus);
 
 module.exports = router;

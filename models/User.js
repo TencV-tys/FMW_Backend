@@ -9,11 +9,28 @@ const findUserByEmail = async (email) => {
 };
 
 const deleteUser = async (id) => {
-    return db('users').where({id}).del();
+  return db('users').where({id}).del();
+}
+
+// 🎯 NEW: Update user profile
+const updateUser = async (id, updateData) => {
+  return db('users')
+    .where('id', id)
+    .update(updateData);
+}
+
+// 🎯 NEW: Get user by ID
+const findUserById = async (id) => {
+  return db('users')
+    .where('id', id)
+    .select('id', 'first_name', 'last_name', 'email', 'gender', 'profile_photo', 'role', 'status', 'created_at')
+    .first();
 }
 
 module.exports = {
   createUser,
   findUserByEmail,
-  deleteUser
+  deleteUser,
+  updateUser,
+  findUserById
 };

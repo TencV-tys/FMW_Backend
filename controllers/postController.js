@@ -44,7 +44,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Get single post by ID
+  // NEW: Get single post by ID
   getPostById: async (req, res) => {
     try {
       const { id } = req.params;
@@ -74,7 +74,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Update post
+  // Update post
   updatePost: async (req, res) => {
     try {
       const { id } = req.params;
@@ -140,7 +140,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Delete post
+  //  Delete post
   deletePost: async (req, res) => {
     try {
       const { id } = req.params;
