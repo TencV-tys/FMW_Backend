@@ -21,10 +21,13 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/auth', authRoutes);
-app.use('/api',userRoutes);
+app.use('/api', userRoutes);
 app.use('/api', postRoutes);
 app.use('/api', adminRoutes);
 
 
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`Server running on port http://localhost:${PORT}`));
+app.listen(PORT,() => {
+  console.log(`Server running on:`);
+  console.log(`Local: http://localhost:${PORT}`);
+});

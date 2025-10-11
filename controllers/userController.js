@@ -28,7 +28,7 @@ const deleted = async (req, res) => {
   }
 }
 
-// 🎯 Get users statistics
+//  Get users statistics
 const getUsersStats = async (req, res) => {
   try {
     const stats = await db('users')
@@ -60,7 +60,7 @@ const getUsersStats = async (req, res) => {
   }
 };
 
-// 🎯 Update user status
+//Update user status
 const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -100,7 +100,7 @@ const updateUserStatus = async (req, res) => {
   }
 };
 
-// 🎯 NEW: Update user profile
+// Update user profile
 const updateProfile = async (req, res) => {
   try {
     const { first_name, last_name, email, gender } = req.body;
@@ -167,7 +167,7 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// 🎯 NEW: Get user profile
+// Get user profile
 const getProfile = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -194,11 +194,45 @@ const getProfile = async (req, res) => {
   }
 };
 
+
+// 🎯 Get user post statistics
+const getUserPostStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const stats = await db('posts')
+      .select(
+        db.raw('COUNT(*) as totalPosts'),
+        db.raw('SUM(CASE WHEN status = "active" THEN 1 ELSE 0 END) as activePosts'),
+        db.raw('SUM(CASE WHEN status = "resolved" THEN 1 ELSE 0 END) as resolvedPosts')
+      )
+      .where('user_id', userId)
+      .first();
+
+    res.json({
+      success: true,
+      stats: {
+        totalPosts: parseInt(stats.totalPosts) || 0,
+        activePosts: parseInt(stats.activePosts) || 0,
+        resolvedPosts: parseInt(stats.resolvedPosts) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user post stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error fetching user post statistics'
+    });
+  }
+};
+
+
 module.exports = {
   getAllUsers,
   deleted,
   getUsersStats,
   updateUserStatus,
   updateProfile,
-  getProfile
+  getProfile,
+  getUserPostStats
 };
