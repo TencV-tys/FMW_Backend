@@ -7,5 +7,5 @@ const { authMiddleware, adminMiddleware } = require('../middleware/authMiddlewar
 router.get('/admin/posts', authMiddleware, adminMiddleware, adminController.getAllPosts);
 router.put('/admin/posts/:id/remove', authMiddleware, adminMiddleware, adminController.removePost);
 router.delete('/admin/posts/:id', authMiddleware, adminMiddleware, adminController.deletePost);
-
+router.put('/admin/posts/:id/resolve', authMiddleware, adminMiddleware, adminController.resolvePost);
 module.exports = router;

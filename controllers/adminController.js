@@ -47,7 +47,26 @@ const adminController = {
       console.error('Delete post error:', error);
       res.status(500).json({ success: false, error: 'Server error deleting post' });
     }
+  },
+  // Resolve post
+resolvePost: async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await db('posts')
+      .where('id', id)
+      .update({ 
+        status: 'resolved',
+        updated_at: new Date()
+      });
+      
+    res.json({ success: true, message: 'Post marked as resolved' });
+  } catch (error) {
+    console.error('Resolve post error:', error);
+    res.status(500).json({ success: false, error: 'Server error resolving post' });
   }
+}
+
 };
 
 module.exports = adminController;
