@@ -1,0 +1,76 @@
+// models/Report.js
+const db = require('../config/db');
+
+const Report = {
+  create: async (reportData) => {
+    const [reportId] = await db('reports').insert(reportData);
+    return reportId;
+  },
+
+  getAll: async () => {
+    return await db('reports')
+      .join('posts', 'reports.post_id', 'posts.id')
+      .join('users', 'reports.reporter_id', 'users.id')
+      .select(
+        'reports.*',
+        'posts.title as post_title',
+        'posts.description as post_description',
+        'posts.user_id as post_owner_id',
+        'users.first_name as reporter_first_name',
+        'users.last_name as reporter_last_name'
+      )
+      .orderBy('reports.created_at', 'desc');
+  },
+
+  getById: async (id) => {
+    return await db('reports')
+      .where('reports.id', id)
+      .join('posts', 'reports.post_id', 'posts.id')
+      .join('users', 'reports.reporter_id', 'users.id')
+      .select(
+        'reports.*',
+        'posts.title as post_title',
+        'posts.description as post_description',
+        'posts.user_id as post_owner_id',
+        'users.first_name as reporter_first_name',
+        'users.last_name as reporter_last_name'
+      )
+      .first();
+  },
+
+  updateStatus: async (id, status) => {
+    return await db('reports')
+      .where('id', id)
+      .update({
+        status,
+        updated_at: new Date()
+      });
+  },
+
+  getByStatus: async (status) => {
+    return await db('reports')
+      .where('status', status)
+      .join('posts', 'reports.post_id', 'posts.id')
+      .join('users', 'reports.reporter_id', 'users.id')
+      .select(
+        'reports.*',
+        'posts.title as post_title',
+        'users.first_name as reporter_first_name',
+        'users.last_name as reporter_last_name'
+      )
+      .orderBy('reports.created_at', 'desc');
+  },
+
+  getByReporterId: async (reporterId) => {
+    return await db('reports')
+      .where('reporter_id', reporterId)
+      .join('posts', 'reports.post_id', 'posts.id')
+      .select(
+        'reports.*',
+        'posts.title as post_title'
+      )
+      .orderBy('reports.created_at', 'desc');
+  }
+};
+
+module.exports = Report;
