@@ -1,4 +1,5 @@
 // controllers/adminNotificationController.js
+const db = require('../config/db');
 const Notification = require('../models/Notification');
 
 const adminNotificationController = {
