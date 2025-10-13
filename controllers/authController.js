@@ -45,13 +45,13 @@ const login = async (req, res) => {
     
     const user = await db('users').where({ email }).first();
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid email or wrong email' });
     }
 
     
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid password or wrong password' });
     }
 
     // Generate JWT token

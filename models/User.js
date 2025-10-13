@@ -19,7 +19,7 @@ const updateUser = async (id, updateData) => {
     .update(updateData);
 }
 
-// 🎯 NEW: Get user by ID
+// Get user by ID
 const findUserById = async (id) => {
   return db('users')
     .where('id', id)
