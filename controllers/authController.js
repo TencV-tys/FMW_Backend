@@ -48,6 +48,13 @@ const login = async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or wrong email' });
     }
 
+   //Verify user is not suspended/banned
+    if (user.status === 'suspended' || user.status === 'banned') {
+      return res.status(403).json({
+        success: false,
+        error: `Your account has been ${user.status}. Please contact administrator.`
+      });
+    }
     
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {

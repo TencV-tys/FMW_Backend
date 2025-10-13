@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { deleteUser, updateUser, findUserById } = require('../models/User');
+const Notification = require('../models/Notification'); // Add this import
 
 const getAllUsers = async (req, res) => {
   try {
@@ -28,7 +29,7 @@ const deleted = async (req, res) => {
   }
 }
 
-//  Get users statistics
+// Get users statistics
 const getUsersStats = async (req, res) => {
   try {
     const stats = await db('users')
@@ -60,11 +61,11 @@ const getUsersStats = async (req, res) => {
   }
 };
 
-//Update user status
+// Enhanced: Update user status with notifications
 const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, reason, duration } = req.body;
 
     if (!['active', 'suspended', 'banned'].includes(status)) {
       return res.status(400).json({
@@ -73,17 +74,86 @@ const updateUserStatus = async (req, res) => {
       });
     }
 
+    // Get user details for notification
+    const user = await db('users')
+      .where('id', id)
+      .select('id', 'email', 'first_name', 'status')
+      .first();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    const updateData = {
+      status,
+      updated_at: new Date()
+    };
+
+    // Add suspension details if suspending
+    if (status === 'suspended') {
+      updateData.suspension_reason = reason || 'Violation of terms';
+      if (duration) {
+        updateData.suspended_until = new Date(Date.now() + duration * 24 * 60 * 60 * 1000); // days to milliseconds
+      }
+    } else if (status === 'active') {
+      // Clear suspension data when reactivating
+      updateData.suspension_reason = null;
+      updateData.suspended_until = null;
+    }
+
     const updated = await db('users')
       .where('id', id)
-      .update({
-        status,
-        updated_at: new Date()
-      });
+      .update(updateData);
 
     if (updated) {
+      // Send notification to user about status change
+      let notificationTitle, notificationMessage;
+
+      switch (status) {
+        case 'suspended':
+          notificationTitle = 'Account Suspended';
+          notificationMessage = `Your account has been suspended. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
+          if (duration) {
+            notificationMessage += ` Duration: ${duration} day(s).`;
+          }
+          break;
+        case 'banned':
+          notificationTitle = 'Account Banned';
+          notificationMessage = `Your account has been permanently banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
+          break;
+        case 'active':
+          notificationTitle = 'Account Reactivated';
+          notificationMessage = 'Your account has been reactivated and you can now access all features.';
+          break;
+      }
+
+      if (notificationTitle) {
+        await Notification.create({
+          user_id: id,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: 'account_status_change',
+          metadata: JSON.stringify({
+            previous_status: user.status,
+            new_status: status,
+            reason: reason,
+            duration: duration
+          })
+        });
+      }
+
       res.json({
         success: true,
-        message: `User ${status} successfully`
+        message: `User ${status} successfully`,
+        data: {
+          id: user.id,
+          email: user.email,
+          newStatus: status,
+          reason: reason
+        }
       });
     } else {
       res.status(404).json({
@@ -194,8 +264,7 @@ const getProfile = async (req, res) => {
   }
 };
 
-
-// 🎯 Get user post statistics
+// Get user post statistics
 const getUserPostStats = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -226,6 +295,38 @@ const getUserPostStats = async (req, res) => {
   }
 };
 
+// Optional: Auto-restore suspended users after duration
+const checkSuspendedUsers = async () => {
+  try {
+    const usersToRestore = await db('users')
+      .where('status', 'suspended')
+      .where('suspended_until', '<', new Date())
+      .whereNotNull('suspended_until');
+
+    for (const user of usersToRestore) {
+      await db('users')
+        .where('id', user.id)
+        .update({
+          status: 'active',
+          suspended_until: null,
+          suspension_reason: null,
+          updated_at: new Date()
+        });
+
+      // Notify user about auto-restoration
+      await Notification.create({
+        user_id: user.id,
+        title: 'Account Restored',
+        message: 'Your account suspension has been automatically lifted.',
+        type: 'account_status_change'
+      });
+
+      console.log(`Auto-restored user: ${user.email}`);
+    }
+  } catch (error) {
+    console.error('Error auto-restoring suspended users:', error);
+  }
+};
 
 module.exports = {
   getAllUsers,
@@ -234,5 +335,6 @@ module.exports = {
   updateUserStatus,
   updateProfile,
   getProfile,
-  getUserPostStats
+  getUserPostStats,
+  checkSuspendedUsers // Export if you want to use auto-restore
 };
