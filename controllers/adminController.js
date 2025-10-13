@@ -1,5 +1,8 @@
 const db = require('../config/db');
 const Post = require('../models/Post');
+const Notification = require('../models/Notification');
+
+
 
 const adminController = {
   // Get all posts for admin moderation
@@ -29,7 +32,18 @@ const adminController = {
   removePost: async (req, res) => {
     try {
       const { id } = req.params;
+       const { reason } = req.body; // Add reason for removal
+
       await Post.remove(id);
+     
+      // Send notification to post owner
+      await Notification.createPostActionNotification(
+        id, 
+        'removed', 
+        req.user.id, 
+        reason
+      );
+    
       res.json({ success: true, message: 'Post removed from public view' });
     } catch (error) {
       console.error('Remove post error:', error);
@@ -41,7 +55,18 @@ const adminController = {
   deletePost: async (req, res) => {
     try {
       const { id } = req.params;
+      const { reason } = req.body; // Add reason for deletion
+
       await Post.delete(id);
+
+      // Send notification to post owner
+      await Notification.createPostActionNotification(
+        id, 
+        'deleted', 
+        req.user.id, 
+        reason
+      );
+
       res.json({ success: true, message: 'Post deleted permanently' });
     } catch (error) {
       console.error('Delete post error:', error);
@@ -60,6 +85,15 @@ resolvePost: async (req, res) => {
         updated_at: new Date()
       });
       
+       // Send notification to post owner
+      await Notification.createPostActionNotification(
+        id, 
+        'resolved', 
+        req.user.id
+      );
+        
+
+
     res.json({ success: true, message: 'Post marked as resolved' });
   } catch (error) {
     console.error('Resolve post error:', error);
@@ -78,6 +112,14 @@ resolvePost: async (req, res) => {
           status: 'active',  // Changed to lowercase
           updated_at: new Date()
         });
+
+         // Send notification to post owner
+      await Notification.createPostActionNotification(
+        id, 
+        'restored', 
+        req.user.id
+      );
+
         
       res.json({ success: true, message: 'Post restored successfully' });
     } catch (error) {

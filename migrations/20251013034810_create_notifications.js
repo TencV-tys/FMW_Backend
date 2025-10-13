@@ -3,12 +3,20 @@
  * @returns { Promise<void> }
  */
 exports.up = function(knex) {
-   return knex.schema.createTable('notifications', function(table) {
+return knex.schema.createTable('notifications', function(table) {
     table.increments('id').primary();
     table.integer('user_id').unsigned().notNullable();
     table.string('title').notNullable();
     table.text('message').notNullable();
-    table.enu('type', ['report_submitted', 'report_status_update', 'post_removed', 'general']).notNullable();
+    table.enu('type', [
+      'report_submitted', 
+      'report_status_update', 
+      'post_resolved',
+      'post_removed', 
+      'post_deleted',
+      'post_restored',
+      'general'
+    ]).notNullable();
     table.boolean('is_read').defaultTo(false);
     table.json('metadata'); // For additional data like report_id, post_id, etc.
     table.timestamps(true, true);
@@ -21,7 +29,6 @@ exports.up = function(knex) {
     table.index(['type']);
     table.index(['created_at']); // For sorting
   });
-
 
 
 };
