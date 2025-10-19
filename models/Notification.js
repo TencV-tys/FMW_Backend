@@ -115,17 +115,21 @@ const Notification = {
 
   // Get admin notifications (for admin notification page)
   getAdminNotifications: async (limit = 50) => {
-    return await db('notifications')
-      .join('users', 'notifications.user_id', 'users.id')
-      .select(
-        'notifications.*',
-        'users.first_name',
-        'users.last_name',
-        'users.role'
-      )
-      .orderBy('notifications.created_at', 'desc')
-      .limit(limit);
-  },
+  return await db('notifications')
+    .join('users', 'notifications.user_id', 'users.id')
+    .where(function() {
+      this.where('notifications.type', 'general')
+          .orWhere('users.role', 'admin');
+    })
+    .select(
+      'notifications.*',
+      'users.first_name',
+      'users.last_name',
+      'users.role'
+    )
+    .orderBy('notifications.created_at', 'desc')
+    .limit(limit);
+},
 
   // Get notifications for specific types (admin actions)
   getByType: async (type, limit = 50) => {

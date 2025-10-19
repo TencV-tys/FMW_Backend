@@ -10,5 +10,7 @@ router.get('/admin/notifications/type/:type', authMiddleware, adminMiddleware, a
 router.get('/admin/notifications/stats', authMiddleware, adminMiddleware, adminNotificationController.getNotificationStats);
 router.delete('/admin/notifications/:id', authMiddleware, adminMiddleware, adminNotificationController.deleteNotification);
 router.delete('/admin/notifications', authMiddleware, adminMiddleware, adminNotificationController.clearAllNotifications);
+router.put('/admin/notifications/:id/read', authMiddleware, adminMiddleware, adminNotificationController.markAsRead);
+router.put('/admin/notifications/read-all', authMiddleware, adminMiddleware, adminNotificationController.markAllAsRead);
 
 module.exports = router;
