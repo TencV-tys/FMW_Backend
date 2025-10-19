@@ -1,4 +1,6 @@
+
 // controllers/notificationController.js
+const db = require('../config/db');
 const Notification = require('../models/Notification');
 
 const notificationController = {
@@ -77,6 +79,37 @@ const notificationController = {
       res.status(500).json({
         success: false,
         error: 'Server error fetching unread count'
+      });
+    }
+  },
+
+  // ADD THIS: User deletes their own notification
+  deleteNotification: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+      
+      const deleted = await db('notifications')
+        .where('id', id)
+        .andWhere('user_id', userId) // User can only delete their own notifications
+        .delete();
+
+      if (deleted) {
+        res.json({
+          success: true,
+          message: 'Notification deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'Notification not found'
+        });
+      }
+    } catch (error) {
+      console.error('Delete notification error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error deleting notification'
       });
     }
   }

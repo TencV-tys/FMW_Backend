@@ -74,13 +74,14 @@ const adminNotificationController = {
     }
   },
 
-  // Delete notification (admin only)
+  // Delete notification (admin only deletes admin notifications)
   deleteNotification: async (req, res) => {
     try {
       const { id } = req.params;
       
       const deleted = await db('notifications')
         .where('id', id)
+        .andWhere('user_id', req.user.id) // Admin can only delete their own notifications
         .delete();
 
       if (deleted) {
@@ -91,7 +92,7 @@ const adminNotificationController = {
       } else {
         res.status(404).json({
           success: false,
-          error: 'Notification not found'
+          error: 'Notification not found or not authorized'
         });
       }
     } catch (error) {
@@ -103,14 +104,16 @@ const adminNotificationController = {
     }
   },
 
-  // Clear all notifications
+  // Clear only admin's notifications
   clearAllNotifications: async (req, res) => {
     try {
-      await db('notifications').delete();
+      await db('notifications')
+        .where('user_id', req.user.id) // Only clear current admin's notifications
+        .delete();
       
       res.json({
         success: true,
-        message: 'All notifications cleared successfully'
+        message: 'Admin notifications cleared successfully'
       });
     } catch (error) {
       console.error('Clear all notifications error:', error);
