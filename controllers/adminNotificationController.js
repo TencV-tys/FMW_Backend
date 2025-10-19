@@ -1,4 +1,4 @@
-// controllers/adminNotificationController.js - UPDATED
+// controllers/adminNotificationController.js - UPDATED TO SHOW ONLY ADMIN-RELATED NOTIFICATIONS
 const db = require('../config/db');
 const Notification = require('../models/Notification');
 
@@ -35,17 +35,51 @@ const adminNotificationController = {
     }
   },
 
-  // Get notifications by type - FILTERED for admin
+  // Get notifications by type - ONLY ADMIN-RELATED NOTIFICATIONS
   getNotificationsByType: async (req, res) => {
     try {
       const { type } = req.params;
+      
+      
       const notifications = await db('notifications')
         .join('users', 'notifications.user_id', 'users.id')
-        .where('notifications.type', type)
-        .andWhere(function() {
+        .where(function() {
+          // Show notifications of this type that are admin-related
+          this.where('notifications.type', type)
+              .andWhere(function() {
+                this.where('users.role', 'admin')
+                    .orWhere('notifications.user_id', req.user.id);
+              });
+        })
+        .orWhere(function() {
+          // Also show admin's own general notifications that match this action
           this.where('notifications.type', 'general')
-              .orWhere('users.role', 'admin')
-              .orWhere('notifications.user_id', req.user.id);
+              .andWhere('notifications.user_id', req.user.id)
+              .andWhere(function() {
+                // Match based on the exact action in the message
+                if (type === 'post_removed') {
+                  this.where('notifications.message', 'like', '%removed post%')
+                      .orWhere('notifications.message', 'like', '%remove post%')
+                      .orWhere('notifications.title', '=', 'Post Removed');
+                } else if (type === 'post_deleted') {
+                  this.where('notifications.message', 'like', '%deleted post%')
+                      .orWhere('notifications.message', 'like', '%delete post%')
+                      .orWhere('notifications.message', 'like', '%permanently deleted%')
+                      .orWhere('notifications.title', '=', 'Post Deleted');
+                } else if (type === 'post_resolved') {
+                  this.where('notifications.message', 'like', '%resolved post%')
+                      .orWhere('notifications.message', 'like', '%resolve post%')
+                      .orWhere('notifications.message', 'like', '%marked as resolved%')
+                      .orWhere('notifications.title', '=', 'Post Resolved');
+                } else if (type === 'post_restored') {
+                  this.where('notifications.message', 'like', '%restored post%')
+                      .orWhere('notifications.message', 'like', '%restore post%')
+                      .orWhere('notifications.title', '=', 'Post Restored');
+                } else if (type === 'report_submitted') {
+                  this.where('notifications.message', 'like', '%report%')
+                      .orWhere('notifications.title', 'like', '%Report%');
+                }
+              });
         })
         .select(
           'notifications.*',
@@ -55,6 +89,7 @@ const adminNotificationController = {
         )
         .orderBy('notifications.created_at', 'desc')
         .limit(50);
+
       
       res.json({
         success: true,
