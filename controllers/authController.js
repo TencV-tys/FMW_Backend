@@ -38,6 +38,52 @@ const register = async (req, res) => {
   }
 };
 
+// NEW: Email availability check endpoint
+const checkEmail = async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email parameter is required'
+      });
+    }
+
+    // Basic email format validation
+    const emailRegex = /\S+@\S+\.\S+/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid email format'
+      });
+    }
+
+    // Check if email exists in database
+    const existingUser = await findUserByEmail(email);
+    
+    if (existingUser) {
+      return res.json({
+        available: false,
+        message: 'This email is already registered'
+      });
+    }
+
+    // Email is available
+    return res.json({
+      available: true,
+      message: 'Email is available'
+    });
+
+  } catch (error) {
+    console.error('Email check error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Server error checking email availability'
+    });
+  }
+};
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -134,4 +180,10 @@ const logout = async (req,res) => {
 };
 
 
-module.exports = { register, login, me , logout };
+module.exports = { 
+  register, 
+  login, 
+  me, 
+  logout, 
+  checkEmail // Export the new function
+};
