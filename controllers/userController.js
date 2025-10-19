@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { deleteUser, updateUser, findUserById } = require('../models/User');
-const Notification = require('../models/Notification'); // Add this import
+const Notification = require('../models/Notification');
+const emailService = require('../services/emailService');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -18,7 +19,29 @@ const getAllUsers = async (req, res) => {
 const deleted = async (req, res) => {
   try {
     const id = req.params.id;
+    
+    // Get user details before deletion for email notification
+    const user = await db('users')
+      .where('id', id)
+      .select('id', 'first_name', 'last_name', 'email')
+      .first();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
     await deleteUser(id);
+
+    // Send email notification to user about account deletion
+    await emailService.sendUserStatusNotification(
+      user.email,
+      `${user.first_name} ${user.last_name}`,
+      'deleted'
+    );
+
     res.json({
       message: 'User deleted successfully!'
     });
@@ -61,7 +84,7 @@ const getUsersStats = async (req, res) => {
   }
 };
 
-// Enhanced: Update user status with notifications
+// Enhanced: Update user status with notifications and email
 const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -77,7 +100,7 @@ const updateUserStatus = async (req, res) => {
     // Get user details for notification
     const user = await db('users')
       .where('id', id)
-      .select('id', 'email', 'first_name', 'status')
+      .select('id', 'email', 'first_name', 'last_name', 'status')
       .first();
 
     if (!user) {
@@ -109,7 +132,16 @@ const updateUserStatus = async (req, res) => {
       .update(updateData);
 
     if (updated) {
-      // Send notification to user about status change
+      // Send email notification to user about status change
+      await emailService.sendUserStatusNotification(
+        user.email,
+        `${user.first_name} ${user.last_name}`,
+        status,
+        reason,
+        duration
+      );
+
+      // Send in-app notification to user
       let notificationTitle, notificationMessage;
 
       switch (status) {
@@ -131,7 +163,7 @@ const updateUserStatus = async (req, res) => {
       }
 
       if (notificationTitle) {
-        await Notification.create({
+        const notificationData = {
           user_id: id,
           title: notificationTitle,
           message: notificationMessage,
@@ -141,8 +173,12 @@ const updateUserStatus = async (req, res) => {
             new_status: status,
             reason: reason,
             duration: duration
-          })
-        });
+          }),
+          is_read: false,
+          created_at: new Date()
+        };
+
+        await db('notifications').insert(notificationData);
       }
 
       res.json({
@@ -313,13 +349,24 @@ const checkSuspendedUsers = async () => {
           updated_at: new Date()
         });
 
+      // Send email notification about auto-restoration
+      await emailService.sendUserStatusNotification(
+        user.email,
+        `${user.first_name} ${user.last_name}`,
+        'activated'
+      );
+
       // Notify user about auto-restoration
-      await Notification.create({
+      const notificationData = {
         user_id: user.id,
         title: 'Account Restored',
         message: 'Your account suspension has been automatically lifted.',
-        type: 'account_status_change'
-      });
+        type: 'account_status_change',
+        is_read: false,
+        created_at: new Date()
+      };
+
+      await db('notifications').insert(notificationData);
 
       console.log(`Auto-restored user: ${user.email}`);
     }
@@ -336,5 +383,5 @@ module.exports = {
   updateProfile,
   getProfile,
   getUserPostStats,
-  checkSuspendedUsers // Export if you want to use auto-restore
+  checkSuspendedUsers
 };
