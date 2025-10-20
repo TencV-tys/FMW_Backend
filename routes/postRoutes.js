@@ -16,7 +16,8 @@ router.get('/posts/active', postController.getActivePosts);
 // Get user's own posts
 router.get('/posts/my-posts', authMiddleware, postController.getMyPosts);
 
-
+// Update post status (mark as resolved) - ADD THIS ROUTE
+router.put('/posts/:id/status', authMiddleware, postController.updatePostStatus);
 
 // Delete post permanently
 router.delete('/posts/:id', authMiddleware, postController.deletePost);

@@ -1,6 +1,7 @@
 const Post = require('../models/Post');
 const Category = require('../models/Category');
 const Barangay = require('../models/Barangay');
+const db = require('../config/db'); // Add this import
 
 const postController = {
 
@@ -140,7 +141,63 @@ const postController = {
     }
   },
 
-  //  Delete post
+  // Update post status
+  updatePostStatus: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const userId = req.user.id;
+
+      // Validate status
+      const validStatuses = ['Active', 'Resolved', 'Removed'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid status. Must be one of: Active, Resolved, Removed'
+        });
+      }
+
+      // First, check if post exists and belongs to user
+      const existingPost = await Post.getById(id);
+      
+      if (!existingPost) {
+        return res.status(404).json({
+          success: false,
+          error: 'Post not found'
+        });
+      }
+
+      if (existingPost.user_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied. You can only update your own posts.'
+        });
+      }
+
+      // Update post status
+      const updated = await Post.update(id, {
+        status: status,
+        updated_at: new Date()
+      });
+
+      if (updated) {
+        res.json({
+          success: true,
+          message: `Post status updated to ${status} successfully!`
+        });
+      } else {
+        throw new Error('Failed to update post status');
+      }
+    } catch (error) {
+      console.error('Update post status error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error updating post status'
+      });
+    }
+  },
+
+  // Delete post
   deletePost: async (req, res) => {
     try {
       const { id } = req.params;
