@@ -1,13 +1,14 @@
 const Post = require('../models/Post');
 const Category = require('../models/Category');
 const Barangay = require('../models/Barangay');
-const db = require('../config/db'); // Add this import
+const Purok = require('../models/Purok');
+const db = require('../config/db');
 
 const postController = {
 
   createPost: async (req, res) => {
     try {
-      const { title, description, type, category_id, barangay_id, color, contact_info } = req.body;
+      const { title, description, type, category_id, barangay_id, purok_id, color, contact_info } = req.body;
 
       // Validate required fields
       if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
@@ -24,6 +25,7 @@ const postController = {
         type,
         category_id: parseInt(category_id),
         barangay_id: parseInt(barangay_id),
+        purok_id: purok_id ? parseInt(purok_id) : null,
         color: color || '',
         contact_info,
         photo: req.file ? req.file.filename : null
@@ -79,7 +81,7 @@ const postController = {
   updatePost: async (req, res) => {
     try {
       const { id } = req.params;
-      const { title, description, type, category_id, barangay_id, color, contact_info } = req.body;
+      const { title, description, type, category_id, barangay_id,purok_id, color, contact_info } = req.body;
 
       // Validate required fields
       if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
@@ -112,6 +114,7 @@ const postController = {
         type,
         category_id: parseInt(category_id),
         barangay_id: parseInt(barangay_id),
+        purok_id: purok_id ? parseInt(purok_id) : null,
         color: color || '',
         contact_info,
         updated_at: new Date()
@@ -263,12 +266,13 @@ const postController = {
   // Get categories and barangays for dropdowns
   getFormData: async (req, res) => {
     try {
-      const [categories, barangays] = await Promise.all([
+      const [categories, barangays, puroks] = await Promise.all([
         Category.getAll(),
-        Barangay.getAll()
+        Barangay.getAll(),
+         Purok.getAll() 
       ]);
 
-      res.json({ success: true, categories, barangays });
+      res.json({ success: true, categories, barangays, puroks });
     } catch (error) {
       console.error('Get form data error:', error);
       res.status(500).json({ success: false, error: 'Server error fetching form data' });

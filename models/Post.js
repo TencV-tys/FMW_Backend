@@ -16,10 +16,12 @@ const Post = {
       .where('posts.id', id)
       .join('categories', 'posts.category_id', 'categories.id')
       .join('barangays', 'posts.barangay_id', 'barangays.id')
+      .leftJoin('puroks', 'posts.purok_id', 'puroks.id') 
       .select(
         'posts.*',
         'categories.name as category_name',
-        'barangays.name as barangay_name'
+        'barangays.name as barangay_name',
+        'puroks.name as purok_name' 
       )
       .first();
   },
@@ -38,13 +40,15 @@ const Post = {
       .join('users', 'posts.user_id', 'users.id')
       .join('categories', 'posts.category_id', 'categories.id')
       .join('barangays', 'posts.barangay_id', 'barangays.id')
+       .leftJoin('puroks', 'posts.purok_id', 'puroks.id') 
       .select(
         'posts.*',
         'users.first_name',
         'users.last_name',
         'users.profile_photo as user_photo',
         'categories.name as category_name',
-        'barangays.name as barangay_name'
+        'barangays.name as barangay_name',
+        'puroks.name as purok_name' 
       )
       .orderBy('posts.created_at', 'desc');
   },
@@ -55,10 +59,12 @@ const Post = {
       .where('user_id', userId)
       .join('categories', 'posts.category_id', 'categories.id')
       .join('barangays', 'posts.barangay_id', 'barangays.id')
+      .leftJoin('puroks', 'posts.purok_id', 'puroks.id')
       .select(
         'posts.*',
         'categories.name as category_name',
-        'barangays.name as barangay_name'
+        'barangays.name as barangay_name',
+         'puroks.name as purok_name'
       )
       .orderBy('posts.created_at', 'desc');
   },
