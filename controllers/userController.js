@@ -45,7 +45,10 @@ const deleted = async (req, res) => {
       });
     }
 
-    const adminUser = req.user; // The admin performing the deletion
+    const adminUser = req.user;
+
+    // 🎯 ADD: Remove from banned_emails if user is deleted
+    await db('banned_emails').where('email', user.email).delete();
 
     await deleteUser(id);
 
@@ -53,7 +56,7 @@ const deleted = async (req, res) => {
 
     // 🎯 CREATE ADMIN NOTIFICATION FOR USER DELETION
     const adminNotificationData = {
-      user_id: adminUser.id, // Notification for the admin who performed the deletion
+      user_id: adminUser.id,
       title: 'User Deleted',
       message: `You permanently deleted user "${user.first_name} ${user.last_name}" (${user.email})`,
       type: 'user_deleted',
@@ -156,7 +159,6 @@ const updateUserStatus = async (req, res) => {
     if (status === 'suspended') {
       updateData.suspension_reason = reason || 'Violation of terms';
       
-      // Set suspension duration
       suspensionDays = 7; // Default 7 days
       if (duration === '3') suspensionDays = 3;
       else if (duration === '7') suspensionDays = 7;
@@ -165,17 +167,36 @@ const updateUserStatus = async (req, res) => {
         suspensionDays = parseInt(customDays);
       }
       
-      // Calculate suspension end date
       const suspendedUntil = new Date();
       suspendedUntil.setDate(suspendedUntil.getDate() + suspensionDays);
       updateData.suspended_until = suspendedUntil;
       updateData.suspension_days = suspensionDays;
+      
+    } else if (status === 'banned') {
+      // For bans, store the ban reason
+      updateData.suspension_reason = reason || 'Violation of terms';
+      
+      // 🎯 ADD EMAIL TO BANNED_EMAILS TABLE
+      const existingBan = await db('banned_emails')
+        .where('email', user.email)
+        .first();
+
+      if (!existingBan) {
+        await db('banned_emails').insert({
+          email: user.email,
+          banned_by: req.user.id,
+          reason: reason || 'Account ban'
+        });
+      }
       
     } else if (status === 'active') {
       // Clear suspension data when reactivating
       updateData.suspension_reason = null;
       updateData.suspended_until = null;
       updateData.suspension_days = null;
+      
+      // 🎯 REMOVE FROM BANNED_EMAILS TABLE IF BANNED
+      await db('banned_emails').where('email', user.email).delete();
     }
 
     const updated = await db('users')
@@ -184,7 +205,18 @@ const updateUserStatus = async (req, res) => {
 
     if (updated) {
       const currentTime = new Date();
-      const adminUser = req.user; // The admin performing the action
+      const adminUser = req.user;
+
+      // Calculate suspension days for notifications
+      let suspensionDays = 7; // Default
+      if (status === 'suspended') {
+        if (duration === '3') suspensionDays = 3;
+        else if (duration === '7') suspensionDays = 7;
+        else if (duration === '30') suspensionDays = 30;
+        else if (duration === 'custom' && customDays) {
+          suspensionDays = parseInt(customDays);
+        }
+      }
 
       // 🎯 CREATE ADMIN NOTIFICATION FOR USER STATUS CHANGE
       let adminNotificationTitle, adminNotificationMessage, notificationType;
@@ -197,7 +229,7 @@ const updateUserStatus = async (req, res) => {
           break;
         case 'banned':
           adminNotificationTitle = 'User Banned';
-          adminNotificationMessage = `You permanently banned user "${user.first_name} ${user.last_name}" (${user.email})${reason ? `. Reason: ${reason}` : ''}`;
+          adminNotificationMessage = `You banned user "${user.first_name} ${user.last_name}" (${user.email})${reason ? `. Reason: ${reason}` : ''}. Their email has been blocked from future registrations.`;
           notificationType = 'user_banned';
           break;
         case 'active':
@@ -209,7 +241,7 @@ const updateUserStatus = async (req, res) => {
 
       if (adminNotificationTitle) {
         const adminNotificationData = {
-          user_id: adminUser.id, // Notification for the admin who performed the action
+          user_id: adminUser.id,
           title: adminNotificationTitle,
           message: adminNotificationMessage,
           type: notificationType,
@@ -252,7 +284,7 @@ const updateUserStatus = async (req, res) => {
           break;
         case 'banned':
           userNotificationTitle = 'Account Banned';
-          userNotificationMessage = `Your account has been permanently banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
+          userNotificationMessage = `Your account has been banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'} You cannot create new accounts with this email address.`;
           break;
         case 'active':
           userNotificationTitle = 'Account Reactivated';

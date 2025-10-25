@@ -15,6 +15,14 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "Passwords do not match" });
     }
 
+    // 🎯 CHECK IF EMAIL IS BANNED
+    const isEmailBanned = await db('banned_emails').where('email', email).first();
+    if (isEmailBanned) {
+      return res.status(400).json({ 
+        message: "This email address has been banned and cannot be used for registration. Please contact support if you believe this is an error." 
+      });
+    }
+
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists" });
@@ -59,6 +67,15 @@ const checkEmail = async (req, res) => {
       });
     }
 
+    // 🎯 CHECK IF EMAIL IS BANNED
+    const isEmailBanned = await db('banned_emails').where('email', email).first();
+    if (isEmailBanned) {
+      return res.json({
+        available: false,
+        message: 'This email has been banned and cannot be used for registration'
+      });
+    }
+
     // Check if email exists in database
     const existingUser = await findUserByEmail(email);
     
@@ -88,18 +105,44 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // 🎯 CHECK IF EMAIL IS BANNED (in case someone tries to login with banned email)
+    const isEmailBanned = await db('banned_emails').where('email', email).first();
+    if (isEmailBanned) {
+      return res.status(403).json({ 
+        message: "This email address has been banned. Please contact administrator." 
+      });
+    }
     
     const user = await db('users').where({ email }).first();
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or wrong email' });
     }
 
-   //Verify user is not suspended/banned
-    if (user.status === 'suspended' || user.status === 'banned') {
-      return res.status(403).json({
-        success: false,
-        error: `Your account has been ${user.status}. Please contact administrator.`
-      });
+    // Verify user is not suspended/banned
+    if (user.status === 'suspended') {
+      let message = 'Your account has been suspended.';
+      if (user.suspended_until) {
+        const untilDate = new Date(user.suspended_until);
+        const now = new Date();
+        if (untilDate > now) {
+          const diffTime = untilDate - now;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          message += ` It will be automatically reactivated in ${diffDays} day(s).`;
+        }
+      }
+      if (user.suspension_reason) {
+        message += ` Reason: ${user.suspension_reason}`;
+      }
+      return res.status(403).json({ message });
+    }
+
+    if (user.status === 'banned') {
+      let message = 'Your account has been permanently banned.';
+      if (user.suspension_reason) {
+        message += ` Reason: ${user.suspension_reason}`;
+      }
+      message += ' Please contact administrator for more information.';
+      return res.status(403).json({ message });
     }
     
     const validPassword = await bcrypt.compare(password, user.password);
@@ -114,7 +157,7 @@ const login = async (req, res) => {
       { expiresIn: '1d' }
     );
 
-    //  Store token in secure cookie (no localStorage needed)
+    // Store token in secure cookie (no localStorage needed)
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -122,7 +165,6 @@ const login = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
 
-   
     res.json({
       success: true,
       user: {
@@ -151,6 +193,13 @@ const me = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    // Check if user is suspended or banned
+    if (user.status === 'suspended' || user.status === 'banned') {
+      return res.status(403).json({ 
+        message: `Your account has been ${user.status}. Please contact administrator.` 
+      });
+    }
+
     res.json({
       user: {
         id: user.id,
@@ -169,7 +218,6 @@ const me = async (req, res) => {
   }
 };
 
-
 const logout = async (req,res) => {
   res.clearCookie('token');
   res.json(
@@ -178,7 +226,6 @@ const logout = async (req,res) => {
     }
   )
 };
-
 
 module.exports = { 
   register, 
