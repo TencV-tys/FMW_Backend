@@ -1,4 +1,4 @@
-// services/emailService.js - COMPLETE VERSION
+// services/emailService.js - COMPLETE VERSION WITH REPORTS
 const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
 
@@ -64,7 +64,7 @@ const emailService = {
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // NEW: Password Reset Email
+  // PASSWORD RESET EMAIL
   sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
     const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
     const subject = 'Password Reset Request - Community Platform';
@@ -73,6 +73,43 @@ const emailService = {
     const htmlContent = emailTemplates.passwordReset(userName, resetLink, '1 hour');
 
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
+
+  // NEW: REPORT SUBMITTED EMAIL
+  sendReportSubmittedEmail: async (userEmail, userName, postTitle, reason, additionalInfo = '', reportId) => {
+    const subject = 'Report Submitted Successfully - Community Platform';
+    const message = `Hello ${userName},\n\nYour report has been submitted successfully and is now under review by our admin team.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Report ID: #${reportId}\n- Status: Under Review\n\nWe will review your report and take appropriate action. You will be notified of any updates.\n\nThank you for helping us maintain a safe community.\n\nBest regards,\nThe Community Platform Team`;
+    
+    const htmlContent = emailTemplates.reportSubmitted(userName, postTitle, reason, additionalInfo, reportId);
+
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
+
+  // NEW: REPORT STATUS UPDATE EMAIL
+  sendReportStatusUpdate: async (userEmail, userName, postTitle, status, reason, adminNote = '', reportId) => {
+    const statusMessages = {
+      pending: 'reopened and is pending review',
+      under_review: 'is now under review',
+      resolved: 'has been resolved',
+      dismissed: 'has been dismissed'
+    };
+
+    const subject = `Report ${status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')} - Community Platform`;
+    const message = `Hello ${userName},\n\nYour report for the post "${postTitle}" has been ${statusMessages[status]}.\n\nReport Details:\n- Post: "${postTitle}"\n- Your Reason: ${reason}\n- Current Status: ${status}\n${adminNote ? `- Admin Note: ${adminNote}\n` : ''}- Report ID: #${reportId}\n\nThank you for your contribution to our community.\n\nBest regards,\nThe Admin Team`;
+    
+    const htmlContent = emailTemplates.reportStatusUpdate(userName, postTitle, status, reason, adminNote, reportId);
+
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
+
+  // NEW: ADMIN REPORT NOTIFICATION
+  sendAdminReportNotification: async (adminEmail, adminName, postTitle, reason, additionalInfo = '', reportId, reporterName) => {
+    const subject = 'New Report Submitted - Action Required';
+    const message = `Hello ${adminName},\n\nA new report has been submitted for the post "${postTitle}".\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Reporter: ${reporterName}\n- Report ID: #${reportId}\n\nPlease review this report in the admin panel.\n\nBest regards,\nThe Community Platform`;
+    
+    const htmlContent = emailTemplates.adminReportNotification(adminName, postTitle, reason, additionalInfo, reportId, reporterName);
+
+    return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
   }
 };
 

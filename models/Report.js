@@ -1,4 +1,4 @@
-// models/Report.js
+// models/Report.js - UPDATED
 const db = require('../config/db');
 
 const Report = {
@@ -10,14 +10,20 @@ const Report = {
   getAll: async () => {
     return await db('reports')
       .join('posts', 'reports.post_id', 'posts.id')
-      .join('users', 'reports.reporter_id', 'users.id')
+      .join('users as reporters', 'reports.reporter_id', 'reporters.id')
+      .join('users as post_authors', 'posts.user_id', 'post_authors.id') // ADD THIS JOIN
       .select(
         'reports.*',
         'posts.title as post_title',
         'posts.description as post_description',
         'posts.user_id as post_owner_id',
-        'users.first_name as reporter_first_name',
-        'users.last_name as reporter_last_name'
+        'reporters.first_name as reporter_first_name',
+        'reporters.last_name as reporter_last_name',
+        // ADD POST AUTHOR INFORMATION
+        'post_authors.first_name as post_author_first_name',
+        'post_authors.last_name as post_author_last_name',
+        db.raw("CONCAT(reporters.first_name, ' ', reporters.last_name) as reporter_name"),
+        db.raw("CONCAT(post_authors.first_name, ' ', post_authors.last_name) as post_author_name")
       )
       .orderBy('reports.created_at', 'desc');
   },
@@ -26,14 +32,20 @@ const Report = {
     return await db('reports')
       .where('reports.id', id)
       .join('posts', 'reports.post_id', 'posts.id')
-      .join('users', 'reports.reporter_id', 'users.id')
+      .join('users as reporters', 'reports.reporter_id', 'reporters.id')
+      .join('users as post_authors', 'posts.user_id', 'post_authors.id') // ADD THIS JOIN
       .select(
         'reports.*',
         'posts.title as post_title',
         'posts.description as post_description',
         'posts.user_id as post_owner_id',
-        'users.first_name as reporter_first_name',
-        'users.last_name as reporter_last_name'
+        'reporters.first_name as reporter_first_name',
+        'reporters.last_name as reporter_last_name',
+        // ADD POST AUTHOR INFORMATION
+        'post_authors.first_name as post_author_first_name',
+        'post_authors.last_name as post_author_last_name',
+        db.raw("CONCAT(reporters.first_name, ' ', reporters.last_name) as reporter_name"),
+        db.raw("CONCAT(post_authors.first_name, ' ', post_authors.last_name) as post_author_name")
       )
       .first();
   },
@@ -51,12 +63,18 @@ const Report = {
     return await db('reports')
       .where('status', status)
       .join('posts', 'reports.post_id', 'posts.id')
-      .join('users', 'reports.reporter_id', 'users.id')
+      .join('users as reporters', 'reports.reporter_id', 'reporters.id')
+      .join('users as post_authors', 'posts.user_id', 'post_authors.id') // ADD THIS JOIN
       .select(
         'reports.*',
         'posts.title as post_title',
-        'users.first_name as reporter_first_name',
-        'users.last_name as reporter_last_name'
+        'reporters.first_name as reporter_first_name',
+        'reporters.last_name as reporter_last_name',
+        // ADD POST AUTHOR INFORMATION
+        'post_authors.first_name as post_author_first_name',
+        'post_authors.last_name as post_author_last_name',
+        db.raw("CONCAT(reporters.first_name, ' ', reporters.last_name) as reporter_name"),
+        db.raw("CONCAT(post_authors.first_name, ' ', post_authors.last_name) as post_author_name")
       )
       .orderBy('reports.created_at', 'desc');
   },
@@ -65,9 +83,14 @@ const Report = {
     return await db('reports')
       .where('reporter_id', reporterId)
       .join('posts', 'reports.post_id', 'posts.id')
+      .join('users as post_authors', 'posts.user_id', 'post_authors.id') // ADD THIS JOIN
       .select(
         'reports.*',
-        'posts.title as post_title'
+        'posts.title as post_title',
+        // ADD POST AUTHOR INFORMATION
+        'post_authors.first_name as post_author_first_name',
+        'post_authors.last_name as post_author_last_name',
+        db.raw("CONCAT(post_authors.first_name, ' ', post_authors.last_name) as post_author_name")
       )
       .orderBy('reports.created_at', 'desc');
   }

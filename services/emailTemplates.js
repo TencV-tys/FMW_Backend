@@ -1,4 +1,4 @@
-// services/emailTemplates.js - COMPLETE VERSION
+// services/emailTemplates.js - COMPLETE VERSION WITH REPORTS
 const emailTemplates = {
   postAction: (userName, postTitle, action, reason) => {
     const actions = {
@@ -73,7 +73,6 @@ const emailTemplates = {
     `;
   },
 
-  // NEW: Password Reset Template
   passwordReset: (userName, resetLink, expiryTime = '1 hour') => {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
@@ -105,6 +104,118 @@ const emailTemplates = {
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
           <p>Best regards,<br>The Admin Team</p>
           <p style="margin-top: 10px; font-size: 12px;">For security reasons, this link can only be used once.</p>
+        </div>
+      </div>
+    `;
+  },
+
+  // NEW: REPORT SUBMITTED TEMPLATE
+  reportSubmitted: (userName, postTitle, reason, additionalInfo = '', reportId) => {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: #10b981; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Report Submitted Successfully</h1>
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        <p>Your report has been submitted successfully and is now under review by our admin team.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Report Details:</h3>
+          <p style="margin: 5px 0;"><strong>Post Title:</strong> ${postTitle}</p>
+          <p style="margin: 5px 0;"><strong>Reason:</strong> ${reason}</p>
+          ${additionalInfo ? `<p style="margin: 5px 0;"><strong>Additional Info:</strong> ${additionalInfo}</p>` : ''}
+          <p style="margin: 5px 0;"><strong>Report ID:</strong> #${reportId}</p>
+          <p style="margin: 5px 0;"><strong>Status:</strong> Under Review</p>
+        </div>
+        
+        <p>We will review your report and take appropriate action. You will be notified of any updates regarding your report.</p>
+        
+        <p>Thank you for helping us maintain a safe and respectful community environment.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform Team</p>
+        </div>
+      </div>
+    `;
+  },
+
+  // NEW: REPORT STATUS UPDATE TEMPLATE
+  reportStatusUpdate: (userName, postTitle, status, reason, adminNote = '', reportId) => {
+    const statusConfig = {
+      pending: { verb: 'reopened and is pending review', color: '#f59e0b' },
+      under_review: { verb: 'is now under review', color: '#8b5cf6' },
+      resolved: { verb: 'has been resolved', color: '#10b981' },
+      dismissed: { verb: 'has been dismissed', color: '#ef4444' }
+    };
+
+    const config = statusConfig[status] || statusConfig.pending;
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: ${config.color}; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Report ${status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}</h1>
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        <p>Your report for the post <strong>"${postTitle}"</strong> has been ${config.verb}.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Report Summary:</h3>
+          <p style="margin: 5px 0;"><strong>Reported Post:</strong> ${postTitle}</p>
+          <p style="margin: 5px 0;"><strong>Your Reason:</strong> ${reason}</p>
+          <p style="margin: 5px 0;"><strong>Current Status:</strong> 
+            <span style="color: ${config.color}; font-weight: bold;">
+              ${status.replace('_', ' ').toUpperCase()}
+            </span>
+          </p>
+          ${adminNote ? `<p style="margin: 5px 0;"><strong>Admin Note:</strong> ${adminNote}</p>` : ''}
+          <p style="margin: 5px 0;"><strong>Report ID:</strong> #${reportId}</p>
+        </div>
+        
+        <p>Thank you for helping us maintain a safe and respectful community environment.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform Team</p>
+        </div>
+      </div>
+    `;
+  },
+
+  // NEW: ADMIN REPORT NOTIFICATION TEMPLATE
+  adminReportNotification: (adminName, postTitle, reason, additionalInfo = '', reportId, reporterName) => {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: #FF8904; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">New Report Submitted</h1>
+        </div>
+        
+        <p>Hello <strong>${adminName}</strong>,</p>
+        
+        <p>A new report has been submitted that requires your attention.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Report Details:</h3>
+          <p style="margin: 5px 0;"><strong>Post Title:</strong> ${postTitle}</p>
+          <p style="margin: 5px 0;"><strong>Reason:</strong> ${reason}</p>
+          ${additionalInfo ? `<p style="margin: 5px 0;"><strong>Additional Info:</strong> ${additionalInfo}</p>` : ''}
+          <p style="margin: 5px 0;"><strong>Reporter:</strong> ${reporterName}</p>
+          <p style="margin: 5px 0;"><strong>Report ID:</strong> #${reportId}</p>
+          <p style="margin: 5px 0;"><strong>Status:</strong> Pending Review</p>
+        </div>
+        
+        <p>Please review this report in the admin panel and take appropriate action.</p>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="http://localhost:5173/admin/reports" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+            Review Report
+          </a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform</p>
         </div>
       </div>
     `;

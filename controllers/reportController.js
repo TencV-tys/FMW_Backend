@@ -1,7 +1,8 @@
-// controllers/reportController.js
+// controllers/reportController.js - UPDATED WITH EMAIL INTEGRATION
 const Report = require('../models/Report');
 const Notification = require('../models/Notification');
 const Post = require('../models/Post');
+const emailService = require('../services/emailService');
 const db = require('../config/db');
 
 const reportController = {
@@ -25,6 +26,12 @@ const reportController = {
         });
       }
 
+      // Get post author info
+      const postAuthor = await db('users')
+        .where('id', post.user_id)
+        .first()
+        .select('id', 'email', 'first_name', 'last_name');
+
       if (post.user_id === reporter_id) {
         return res.status(400).json({
           success: false,
@@ -41,10 +48,16 @@ const reportController = {
 
       const reportId = await Report.create(reportData);
 
+      // Get reporter info
+      const reporter = await db('users')
+        .where('id', reporter_id)
+        .first()
+        .select('email', 'first_name', 'last_name');
+
       // Get all admin users for notification
-      const adminUsers = await db('users').where('role', 'admin').select('id');
+      const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
       
-      // Create notifications for all admins
+      // Create notifications and send emails to all admins
       for (const admin of adminUsers) {
         await Notification.create({
           user_id: admin.id,
@@ -53,6 +66,17 @@ const reportController = {
           type: 'report_submitted',
           metadata: JSON.stringify({ report_id: reportId, post_id: post_id })
         });
+
+        // Send email to admin about new report
+        await emailService.sendAdminReportNotification(
+          admin.email,
+          admin.first_name,
+          post.title,
+          reason,
+          additional_info,
+          reportId,
+          `${reporter.first_name} ${reporter.last_name}`
+        );
       }
 
       // Create notification for reporter
@@ -63,6 +87,16 @@ const reportController = {
         type: 'report_submitted',
         metadata: JSON.stringify({ report_id: reportId })
       });
+
+      // Send confirmation email to reporter
+      await emailService.sendReportSubmittedEmail(
+        reporter.email,
+        reporter.first_name,
+        post.title,
+        reason,
+        additional_info,
+        reportId
+      );
 
       res.status(201).json({
         success: true,
@@ -97,7 +131,7 @@ const reportController = {
   updateReportStatus: async (req, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { status, admin_note } = req.body;
 
       if (!['pending', 'under_review', 'resolved', 'dismissed'].includes(status)) {
         return res.status(400).json({
@@ -117,14 +151,34 @@ const reportController = {
       const updated = await Report.updateStatus(id, status);
 
       if (updated) {
+        // Get reporter info for notification
+        const reporter = await db('users')
+          .where('id', report.reporter_id)
+          .first()
+          .select('id', 'email', 'first_name');
+
+        // Get post info
+        const post = await Post.getById(report.post_id);
+
         // Create notification for reporter about status update
         await Notification.create({
           user_id: report.reporter_id,
-          title: 'Report Status Updated',
-          message: `Your report has been marked as ${status}`,
+          title: `Report ${status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}`,
+          message: `Your report for post "${post.title}" has been ${status}`,
           type: 'report_status_update',
-          metadata: JSON.stringify({ report_id: id, status })
+          metadata: JSON.stringify({ report_id: id, status, post_id: report.post_id })
         });
+
+        // Send email to reporter about status update
+        await emailService.sendReportStatusUpdate(
+          reporter.email,
+          reporter.first_name,
+          post.title,
+          status,
+          report.reason,
+          admin_note,
+          id
+        );
 
         res.json({
           success: true,
