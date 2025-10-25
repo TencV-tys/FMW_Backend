@@ -33,7 +33,30 @@ const deleted = async (req, res) => {
       });
     }
 
+    const adminUser = req.user; // The admin performing the deletion
+
     await deleteUser(id);
+
+    const currentTime = new Date();
+
+    // 🎯 CREATE ADMIN NOTIFICATION FOR USER DELETION
+    const adminNotificationData = {
+      user_id: adminUser.id, // Notification for the admin who performed the deletion
+      title: 'User Deleted',
+      message: `You permanently deleted user "${user.first_name} ${user.last_name}" (${user.email})`,
+      type: 'user_deleted',
+      metadata: JSON.stringify({
+        target_user_id: user.id,
+        target_user_name: `${user.first_name} ${user.last_name}`,
+        target_user_email: user.email,
+        performed_by: adminUser.id,
+        performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+
+    await db('notifications').insert(adminNotificationData);
 
     // Send email notification to user about account deletion
     await emailService.sendUserStatusNotification(
@@ -119,7 +142,7 @@ const updateUserStatus = async (req, res) => {
     if (status === 'suspended') {
       updateData.suspension_reason = reason || 'Violation of terms';
       if (duration) {
-        updateData.suspended_until = new Date(Date.now() + duration * 24 * 60 * 60 * 1000); // days to milliseconds
+        updateData.suspended_until = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
       }
     } else if (status === 'active') {
       // Clear suspension data when reactivating
@@ -132,6 +155,54 @@ const updateUserStatus = async (req, res) => {
       .update(updateData);
 
     if (updated) {
+      const currentTime = new Date();
+      const adminUser = req.user; // The admin performing the action
+
+      // 🎯 CREATE ADMIN NOTIFICATION FOR USER STATUS CHANGE
+      let adminNotificationTitle, adminNotificationMessage, notificationType;
+
+      switch (status) {
+        case 'suspended':
+          adminNotificationTitle = 'User Suspended';
+          adminNotificationMessage = `You suspended user "${user.first_name} ${user.last_name}" (${user.email})${reason ? `. Reason: ${reason}` : ''}${duration ? ` for ${duration} day(s)` : ''}`;
+          notificationType = 'user_suspended';
+          break;
+        case 'banned':
+          adminNotificationTitle = 'User Banned';
+          adminNotificationMessage = `You permanently banned user "${user.first_name} ${user.last_name}" (${user.email})${reason ? `. Reason: ${reason}` : ''}`;
+          notificationType = 'user_banned';
+          break;
+        case 'active':
+          adminNotificationTitle = 'User Activated';
+          adminNotificationMessage = `You activated user "${user.first_name} ${user.last_name}" (${user.email})`;
+          notificationType = 'user_activated';
+          break;
+      }
+
+      if (adminNotificationTitle) {
+        const adminNotificationData = {
+          user_id: adminUser.id, // Notification for the admin who performed the action
+          title: adminNotificationTitle,
+          message: adminNotificationMessage,
+          type: notificationType,
+          metadata: JSON.stringify({
+            target_user_id: user.id,
+            target_user_name: `${user.first_name} ${user.last_name}`,
+            target_user_email: user.email,
+            previous_status: user.status,
+            new_status: status,
+            reason: reason,
+            duration: duration,
+            performed_by: adminUser.id,
+            performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+
+        await db('notifications').insert(adminNotificationData);
+      }
+
       // Send email notification to user about status change
       await emailService.sendUserStatusNotification(
         user.email,
@@ -142,31 +213,31 @@ const updateUserStatus = async (req, res) => {
       );
 
       // Send in-app notification to user
-      let notificationTitle, notificationMessage;
+      let userNotificationTitle, userNotificationMessage;
 
       switch (status) {
         case 'suspended':
-          notificationTitle = 'Account Suspended';
-          notificationMessage = `Your account has been suspended. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
+          userNotificationTitle = 'Account Suspended';
+          userNotificationMessage = `Your account has been suspended. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
           if (duration) {
-            notificationMessage += ` Duration: ${duration} day(s).`;
+            userNotificationMessage += ` Duration: ${duration} day(s).`;
           }
           break;
         case 'banned':
-          notificationTitle = 'Account Banned';
-          notificationMessage = `Your account has been permanently banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
+          userNotificationTitle = 'Account Banned';
+          userNotificationMessage = `Your account has been permanently banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
           break;
         case 'active':
-          notificationTitle = 'Account Reactivated';
-          notificationMessage = 'Your account has been reactivated and you can now access all features.';
+          userNotificationTitle = 'Account Reactivated';
+          userNotificationMessage = 'Your account has been reactivated and you can now access all features.';
           break;
       }
 
-      if (notificationTitle) {
-        const notificationData = {
-          user_id: id,
-          title: notificationTitle,
-          message: notificationMessage,
+      if (userNotificationTitle) {
+        const userNotificationData = {
+          user_id: user.id,
+          title: userNotificationTitle,
+          message: userNotificationMessage,
           type: 'account_status_change',
           metadata: JSON.stringify({
             previous_status: user.status,
@@ -175,10 +246,10 @@ const updateUserStatus = async (req, res) => {
             duration: duration
           }),
           is_read: false,
-          created_at: new Date()
+          created_at: currentTime
         };
 
-        await db('notifications').insert(notificationData);
+        await db('notifications').insert(userNotificationData);
       }
 
       res.json({

@@ -1,4 +1,3 @@
-// controllers/adminNotificationController.js - UPDATED TO SHOW ONLY ADMIN-RELATED NOTIFICATIONS
 const db = require('../config/db');
 const Notification = require('../models/Notification');
 
@@ -40,7 +39,6 @@ const adminNotificationController = {
     try {
       const { type } = req.params;
       
-      
       const notifications = await db('notifications')
         .join('users', 'notifications.user_id', 'users.id')
         .where(function() {
@@ -78,6 +76,18 @@ const adminNotificationController = {
                 } else if (type === 'report_submitted') {
                   this.where('notifications.message', 'like', '%report%')
                       .orWhere('notifications.title', 'like', '%Report%');
+                } else if (type === 'user_suspended') {
+                  this.where('notifications.message', 'like', '%suspended user%')
+                      .orWhere('notifications.title', '=', 'User Suspended');
+                } else if (type === 'user_banned') {
+                  this.where('notifications.message', 'like', '%banned user%')
+                      .orWhere('notifications.title', '=', 'User Banned');
+                } else if (type === 'user_activated') {
+                  this.where('notifications.message', 'like', '%activated user%')
+                      .orWhere('notifications.title', '=', 'User Activated');
+                } else if (type === 'user_deleted') {
+                  this.where('notifications.message', 'like', '%deleted user%')
+                      .orWhere('notifications.title', '=', 'User Deleted');
                 }
               });
         })
@@ -90,7 +100,6 @@ const adminNotificationController = {
         .orderBy('notifications.created_at', 'desc')
         .limit(50);
 
-      
       res.json({
         success: true,
         notifications
@@ -121,7 +130,12 @@ const adminNotificationController = {
           db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as removed'),
           db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as deleted'),
           db.raw('SUM(CASE WHEN type = "report_submitted" THEN 1 ELSE 0 END) as reports'),
-          db.raw('SUM(CASE WHEN type = "general" THEN 1 ELSE 0 END) as admin_actions')
+          db.raw('SUM(CASE WHEN type = "general" THEN 1 ELSE 0 END) as admin_actions'),
+          // 🎯 ADD USER ACTION STATS
+          db.raw('SUM(CASE WHEN type = "user_suspended" THEN 1 ELSE 0 END) as user_suspended'),
+          db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
+          db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
+          db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted')
         )
         .first();
 
@@ -134,7 +148,12 @@ const adminNotificationController = {
           removed: parseInt(stats.removed) || 0,
           deleted: parseInt(stats.deleted) || 0,
           reports: parseInt(stats.reports) || 0,
-          admin_actions: parseInt(stats.admin_actions) || 0
+          admin_actions: parseInt(stats.admin_actions) || 0,
+          // 🎯 ADD USER ACTION COUNTS
+          user_suspended: parseInt(stats.user_suspended) || 0,
+          user_banned: parseInt(stats.user_banned) || 0,
+          user_activated: parseInt(stats.user_activated) || 0,
+          user_deleted: parseInt(stats.user_deleted) || 0
         }
       });
     } catch (error) {
