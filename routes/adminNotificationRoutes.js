@@ -6,6 +6,7 @@ const { authMiddleware, adminMiddleware } = require('../middleware/authMiddlewar
 
 // Admin notification routes
 router.get('/admin/notifications', authMiddleware, adminMiddleware, adminNotificationController.getAllNotifications);
+router.get('/admin/notifications/unread', authMiddleware, adminMiddleware, adminNotificationController.getUnreadNotifications); // 🎯 ADD THIS LINE
 router.get('/admin/notifications/type/:type', authMiddleware, adminMiddleware, adminNotificationController.getNotificationsByType);
 router.get('/admin/notifications/stats', authMiddleware, adminMiddleware, adminNotificationController.getNotificationStats);
 router.delete('/admin/notifications/:id', authMiddleware, adminMiddleware, adminNotificationController.deleteNotification);

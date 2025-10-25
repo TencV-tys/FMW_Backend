@@ -34,10 +34,48 @@ const adminNotificationController = {
     }
   },
 
+  // 🎯 NEW: Get unread notifications only
+  getUnreadNotifications: async (req, res) => {
+    try {
+      const notifications = await db('notifications')
+        .join('users', 'notifications.user_id', 'users.id')
+        .where('notifications.is_read', false) // Only unread notifications
+        .andWhere(function() {
+          this.where('notifications.type', 'general')
+              .orWhere('users.role', 'admin')
+              .orWhere('notifications.user_id', req.user.id);
+        })
+        .select(
+          'notifications.*',
+          'users.first_name',
+          'users.last_name',
+          'users.role'
+        )
+        .orderBy('notifications.created_at', 'desc')
+        .limit(50);
+
+      res.json({
+        success: true,
+        notifications
+      });
+    } catch (error) {
+      console.error('Get unread notifications error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error fetching unread notifications'
+      });
+    }
+  },
+
   // Get notifications by type - ONLY ADMIN-RELATED NOTIFICATIONS
   getNotificationsByType: async (req, res) => {
     try {
       const { type } = req.params;
+      
+      // 🎯 If type is 'unread', use the unread endpoint instead
+      if (type === 'unread') {
+        return adminNotificationController.getUnreadNotifications(req, res);
+      }
       
       const notifications = await db('notifications')
         .join('users', 'notifications.user_id', 'users.id')
