@@ -135,6 +135,7 @@ deleteAllNotifications: async (req, res) => {
     });
   }
 }
+
 };
 
 module.exports = notificationController;
