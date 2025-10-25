@@ -112,7 +112,29 @@ const notificationController = {
         error: 'Server error deleting notification'
       });
     }
+  },
+  // Delete all user notifications
+deleteAllNotifications: async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const deleted = await db('notifications')
+      .where('user_id', userId)
+      .delete();
+
+    res.json({
+      success: true,
+      message: 'All notifications deleted successfully',
+      deletedCount: deleted
+    });
+  } catch (error) {
+    console.error('Delete all notifications error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error deleting all notifications'
+    });
   }
+}
 };
 
 module.exports = notificationController;
