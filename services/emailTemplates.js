@@ -45,32 +45,34 @@ const emailTemplates = {
 
     const config = statusConfig[status] || statusConfig.suspended;
 
-    return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h1 style="color: #333;">${config.title}</h1>
-        </div>
-        
-        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-          <h2 style="color: ${config.color}; margin: 0;">Your account has been ${config.verb}</h2>
-        </div>
-        
-        <p>Hello <strong>${userName}</strong>,</p>
-        
-        <div style="background-color: white; border-left: 4px solid ${config.color}; padding: 15px; margin: 15px 0;">
-          <p style="margin: 0;"><strong>Status:</strong> ${config.verb}</p>
-          ${reason ? `<p style="margin: 5px 0 0 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
-          ${duration ? `<p style="margin: 5px 0 0 0;"><strong>Duration:</strong> ${duration} day(s)</p>` : ''}
-        </div>
-        
-        <p>If you have any questions or believe this was done in error, please contact our support team.</p>
-        
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
-          <p>Best regards,<br>The Admin Team</p>
-          <p style="margin-top: 10px; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
-        </div>
+ return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h1 style="color: #333;">${config.title}</h1>
       </div>
-    `;
+      
+      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <h2 style="color: ${config.color}; margin: 0;">Your account has been ${config.verb}</h2>
+        ${status === 'suspended' && duration ? `<p style="margin: 10px 0 0 0; font-size: 1.1em;"><strong>Duration:</strong> ${duration} day(s)</p>` : ''}
+      </div>
+      
+      <p>Hello <strong>${userName}</strong>,</p>
+      
+      <div style="background-color: white; border-left: 4px solid ${config.color}; padding: 15px; margin: 15px 0;">
+        <p style="margin: 0;"><strong>Status:</strong> ${config.verb}</p>
+        ${reason ? `<p style="margin: 5px 0 0 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+        ${status === 'suspended' && duration ? `<p style="margin: 5px 0 0 0;"><strong>Suspension Period:</strong> ${duration} day(s)</p>` : ''}
+        ${status === 'suspended' ? `<p style="margin: 5px 0 0 0;"><strong>Auto-reactivation:</strong> Your account will be automatically reactivated after the suspension period.</p>` : ''}
+      </div>
+      
+      <p>If you have any questions or believe this was done in error, please contact our support team.</p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+        <p>Best regards,<br>The Admin Team</p>
+        <p style="margin-top: 10px; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+      </div>
+    </div>
+  `;
   },
 
   passwordReset: (userName, resetLink, expiryTime = '1 hour') => {

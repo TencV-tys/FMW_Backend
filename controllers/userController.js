@@ -6,7 +6,19 @@ const emailService = require('../services/emailService');
 const getAllUsers = async (req, res) => {
   try {
     const users = await db('users')
-      .select('id', 'first_name', 'last_name', 'email', 'gender', 'role', 'status', 'created_at')
+      .select(
+        'id', 
+        'first_name', 
+        'last_name', 
+        'email', 
+        'gender', 
+        'role', 
+        'status', 
+        'created_at', 
+        'suspended_until',
+        'suspension_reason',
+        'suspension_days'
+      )
       .orderBy('created_at', 'desc');
     res.json(users);
   } catch (error) {
@@ -111,7 +123,7 @@ const getUsersStats = async (req, res) => {
 const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, reason, duration } = req.body;
+    const { status, reason, duration, customDays } = req.body;
 
     if (!['active', 'suspended', 'banned'].includes(status)) {
       return res.status(400).json({
@@ -138,16 +150,32 @@ const updateUserStatus = async (req, res) => {
       updated_at: new Date()
     };
 
+    let suspensionDays = 0;
+
     // Add suspension details if suspending
     if (status === 'suspended') {
       updateData.suspension_reason = reason || 'Violation of terms';
-      if (duration) {
-        updateData.suspended_until = new Date(Date.now() + duration * 24 * 60 * 60 * 1000);
+      
+      // Set suspension duration
+      suspensionDays = 7; // Default 7 days
+      if (duration === '3') suspensionDays = 3;
+      else if (duration === '7') suspensionDays = 7;
+      else if (duration === '30') suspensionDays = 30;
+      else if (duration === 'custom' && customDays) {
+        suspensionDays = parseInt(customDays);
       }
+      
+      // Calculate suspension end date
+      const suspendedUntil = new Date();
+      suspendedUntil.setDate(suspendedUntil.getDate() + suspensionDays);
+      updateData.suspended_until = suspendedUntil;
+      updateData.suspension_days = suspensionDays;
+      
     } else if (status === 'active') {
       // Clear suspension data when reactivating
       updateData.suspension_reason = null;
       updateData.suspended_until = null;
+      updateData.suspension_days = null;
     }
 
     const updated = await db('users')
@@ -164,7 +192,7 @@ const updateUserStatus = async (req, res) => {
       switch (status) {
         case 'suspended':
           adminNotificationTitle = 'User Suspended';
-          adminNotificationMessage = `You suspended user "${user.first_name} ${user.last_name}" (${user.email})${reason ? `. Reason: ${reason}` : ''}${duration ? ` for ${duration} day(s)` : ''}`;
+          adminNotificationMessage = `You suspended user "${user.first_name} ${user.last_name}" (${user.email}) for ${suspensionDays} day(s)${reason ? `. Reason: ${reason}` : ''}`;
           notificationType = 'user_suspended';
           break;
         case 'banned':
@@ -192,7 +220,8 @@ const updateUserStatus = async (req, res) => {
             previous_status: user.status,
             new_status: status,
             reason: reason,
-            duration: duration,
+            duration: suspensionDays,
+            suspended_until: updateData.suspended_until,
             performed_by: adminUser.id,
             performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`
           }),
@@ -209,7 +238,7 @@ const updateUserStatus = async (req, res) => {
         `${user.first_name} ${user.last_name}`,
         status,
         reason,
-        duration
+        suspensionDays
       );
 
       // Send in-app notification to user
@@ -218,10 +247,8 @@ const updateUserStatus = async (req, res) => {
       switch (status) {
         case 'suspended':
           userNotificationTitle = 'Account Suspended';
-          userNotificationMessage = `Your account has been suspended. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'}`;
-          if (duration) {
-            userNotificationMessage += ` Duration: ${duration} day(s).`;
-          }
+          const suspendedUntil = updateData.suspended_until;
+          userNotificationMessage = `Your account has been suspended for ${suspensionDays} day(s). ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'} Your account will be automatically reactivated on ${suspendedUntil.toLocaleDateString()}.`;
           break;
         case 'banned':
           userNotificationTitle = 'Account Banned';
@@ -243,7 +270,8 @@ const updateUserStatus = async (req, res) => {
             previous_status: user.status,
             new_status: status,
             reason: reason,
-            duration: duration
+            duration: suspensionDays,
+            suspended_until: updateData.suspended_until
           }),
           is_read: false,
           created_at: currentTime
@@ -259,7 +287,9 @@ const updateUserStatus = async (req, res) => {
           id: user.id,
           email: user.email,
           newStatus: status,
-          reason: reason
+          reason: reason,
+          duration: suspensionDays,
+          suspended_until: updateData.suspended_until
         }
       });
     } else {
@@ -417,6 +447,7 @@ const checkSuspendedUsers = async () => {
           status: 'active',
           suspended_until: null,
           suspension_reason: null,
+          suspension_days: null,
           updated_at: new Date()
         });
 
