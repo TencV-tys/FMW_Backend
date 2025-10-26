@@ -142,14 +142,15 @@ const adminNotificationController = {
                   this.where('notifications.message', 'like', '%feedback updated%')
                       .orWhere('notifications.message', 'like', '%feedback status%')
                       .orWhere('notifications.title', 'like', '%Feedback Updated%');
-                } else if (type === 'feedback_assigned') {
-                  this.where('notifications.message', 'like', '%feedback assigned%')
-                      .orWhere('notifications.message', 'like', '%assigned feedback%')
-                      .orWhere('notifications.title', 'like', '%Feedback Assigned%');
                 } else if (type === 'feedback_deleted') {
                   this.where('notifications.message', 'like', '%feedback deleted%')
                       .orWhere('notifications.message', 'like', '%deleted feedback%')
                       .orWhere('notifications.title', 'like', '%Feedback Deleted%');
+                }
+                // 🆕 ADD GENERAL NOTIFICATION FILTERING
+                else if (type === 'general') {
+                  this.where('notifications.message', 'like', '%') // Match all general notifications
+                      .orWhere('notifications.title', 'like', '%');
                 }
               });
         })
@@ -200,10 +201,9 @@ const adminNotificationController = {
           db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
           db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
           db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted'),
-          // 🆕 ADD FEEDBACK STATS
+          // 🆕 ADD FEEDBACK STATS (REMOVED feedback_assigned)
           db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
           db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
-          db.raw('SUM(CASE WHEN type = "feedback_assigned" THEN 1 ELSE 0 END) as feedback_assigned'),
           db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted')
         )
         .first();
@@ -218,10 +218,9 @@ const adminNotificationController = {
           user_banned: parseInt(stats.user_banned) || 0,
           user_activated: parseInt(stats.user_activated) || 0,
           user_deleted: parseInt(stats.user_deleted) || 0,
-          // 🆕 ADD FEEDBACK COUNTS
+          // 🆕 ADD FEEDBACK COUNTS (REMOVED feedback_assigned)
           feedback_submitted: parseInt(stats.feedback_submitted) || 0,
           feedback_updated: parseInt(stats.feedback_updated) || 0,
-          feedback_assigned: parseInt(stats.feedback_assigned) || 0,
           feedback_deleted: parseInt(stats.feedback_deleted) || 0
         }
       });
