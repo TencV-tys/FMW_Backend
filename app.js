@@ -9,6 +9,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const adminNotificationRoutes = require('./routes/adminNotificationRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 const path = require('path');
 
 const app = express();
@@ -30,6 +31,8 @@ app.use('/api', adminRoutes);
 app.use('/api', adminNotificationRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api',reportRoutes);
+app.use('/api', feedbackRoutes);
+
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT,() => {

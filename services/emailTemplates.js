@@ -1,4 +1,4 @@
-// services/emailTemplates.js - COMPLETE VERSION WITH REPORTS
+// services/emailTemplates.js - UPDATED WITH FEEDBACK
 const emailTemplates = {
   postAction: (userName, postTitle, action, reason) => {
     const actions = {
@@ -218,6 +218,104 @@ const emailTemplates = {
         
         <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
           <p>Best regards,<br>The Community Platform</p>
+        </div>
+      </div>
+    `;
+  },
+
+  // 🆕 FEEDBACK NOTIFICATION TEMPLATE
+  feedbackNotification: (adminName, type, title, description, priority, submittedBy) => {
+    const typeColors = {
+      bug: '#ef4444',
+      feature: '#10b981',
+      suggestion: '#8b5cf6',
+      general: '#FF8904'
+    };
+
+    const priorityColors = {
+      critical: '#ef4444',
+      high: '#f59e0b',
+      medium: '#eab308',
+      low: '#10b981'
+    };
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: ${typeColors[type] || '#FF8904'}; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">New ${type.charAt(0).toUpperCase() + type.slice(1)} Feedback</h1>
+        </div>
+        
+        <p>Hello <strong>${adminName}</strong>,</p>
+        
+        <p>A new feedback has been submitted that requires your attention.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Feedback Details:</h3>
+          <p style="margin: 5px 0;"><strong>Type:</strong> 
+            <span style="color: ${typeColors[type] || '#FF8904'}; font-weight: bold; text-transform: capitalize;">
+              ${type}
+            </span>
+          </p>
+          <p style="margin: 5px 0;"><strong>Priority:</strong> 
+            <span style="color: ${priorityColors[priority] || '#6b7280'}; font-weight: bold; text-transform: capitalize;">
+              ${priority}
+            </span>
+          </p>
+          <p style="margin: 5px 0;"><strong>Submitted by:</strong> ${submittedBy}</p>
+          <p style="margin: 5px 0;"><strong>Title:</strong> ${title}</p>
+          <p style="margin: 5px 0;"><strong>Description:</strong> ${description}</p>
+        </div>
+        
+        <p>Please review this feedback in the admin panel and take appropriate action.</p>
+        
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="http://localhost:5173/admin/feedback" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+            Review Feedback
+          </a>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform</p>
+        </div>
+      </div>
+    `;
+  },
+
+  // 🆕 FEEDBACK STATUS UPDATE TEMPLATE
+  feedbackStatusUpdate: (userName, title, status, adminNotes) => {
+    const statusColors = {
+      pending: '#f59e0b',
+      reviewed: '#8b5cf6',
+      in_progress: '#3b82f6',
+      completed: '#10b981',
+      rejected: '#ef4444'
+    };
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: ${statusColors[status] || '#FF8904'}; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Feedback Status Updated</h1>
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        <p>Your feedback has been updated. Here are the details:</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Feedback Summary:</h3>
+          <p style="margin: 5px 0;"><strong>Title:</strong> ${title}</p>
+          <p style="margin: 5px 0;"><strong>Status:</strong> 
+            <span style="color: ${statusColors[status] || '#FF8904'}; font-weight: bold; text-transform: capitalize;">
+              ${status.replace('_', ' ')}
+            </span>
+          </p>
+          ${adminNotes ? `<p style="margin: 5px 0;"><strong>Admin Notes:</strong> ${adminNotes}</p>` : ''}
+        </div>
+        
+        <p>Thank you for helping us improve our platform!</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform Team</p>
         </div>
       </div>
     `;

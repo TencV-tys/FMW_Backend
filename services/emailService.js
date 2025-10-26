@@ -1,4 +1,4 @@
-// services/emailService.js - COMPLETE VERSION WITH REPORTS
+// services/emailService.js - UPDATED WITH FEEDBACK
 const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
 
@@ -110,6 +110,26 @@ const emailService = {
     const htmlContent = emailTemplates.adminReportNotification(adminName, postTitle, reason, additionalInfo, reportId, reporterName);
 
     return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
+  },
+
+  // 🆕 FEEDBACK NOTIFICATION TO ADMINS
+  sendFeedbackNotification: async (adminEmail, adminName, type, title, description, priority, submittedBy) => {
+    const subject = `New ${type} Feedback: ${title}`;
+    const message = `Hello ${adminName},\n\nA new ${type} feedback has been submitted.\n\nFeedback Details:\n- Type: ${type}\n- Priority: ${priority}\n- Submitted by: ${submittedBy}\n- Title: ${title}\n- Description: ${description}\n\nPlease review this feedback in the admin panel.\n\nBest regards,\nThe Community Platform`;
+    
+    const htmlContent = emailTemplates.feedbackNotification(adminName, type, title, description, priority, submittedBy);
+
+    return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
+  },
+
+  // 🆕 FEEDBACK STATUS UPDATE TO USERS
+  sendFeedbackStatusUpdate: async (userEmail, userName, title, status, adminNotes) => {
+    const subject = `Feedback Update: ${title}`;
+    const message = `Hello ${userName},\n\nYour feedback "${title}" has been updated to: ${status}\n${adminNotes ? `\nAdmin Notes: ${adminNotes}\n` : ''}\nThank you for your contribution to improving our platform!\n\nBest regards,\nThe Community Platform Team`;
+    
+    const htmlContent = emailTemplates.feedbackStatusUpdate(userName, title, status, adminNotes);
+
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   }
 };
 
