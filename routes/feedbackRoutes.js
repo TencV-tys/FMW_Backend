@@ -4,7 +4,7 @@ const feedbackController = require('../controllers/feedbackController');
 const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
 
 // Public routes (anonymous feedback allowed)
-router.post('/feedback', feedbackController.submitFeedback); // No auth required for anonymous feedback
+router.post('/feedback', authMiddleware, feedbackController.submitFeedback); // No auth required for anonymous feedback
 
 // User routes (for logged-in users to view their own feedback)
 router.get('/feedback/my-feedback', authMiddleware, feedbackController.getUserFeedback);
