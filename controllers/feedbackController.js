@@ -36,7 +36,7 @@ const feedbackController = {
       }
 
       const feedbackData = {
-        user_id: req.user?.id || null, // Can be anonymous
+        user_id: req.user?.id || null,
         type,
         title: title.trim(),
         description: description.trim(),
@@ -189,7 +189,7 @@ const feedbackController = {
     }
   },
 
-  // Update feedback status (admin only)
+  // Update feedback status with user notifications
   updateFeedbackStatus: async (req, res) => {
     try {
       const { id } = req.params;
@@ -218,37 +218,47 @@ const feedbackController = {
         const currentTime = new Date();
         const adminUser = req.user;
 
-        // Create admin notification
-        const adminNotificationData = {
-          user_id: adminUser.id,
-          title: 'Feedback Status Updated',
-          message: `You updated feedback "${feedback.title}" to ${status}`,
-          type: 'feedback_updated',
-          metadata: JSON.stringify({
-            feedback_id: id,
-            previous_status: feedback.status,
-            new_status: status,
-            title: feedback.title,
-            admin_notes
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-
-        await db('notifications').insert(adminNotificationData);
-
-        // If feedback was submitted by a user, notify them
+        // CREATE USER NOTIFICATION IF FEEDBACK HAS A USER
         if (feedback.user_id) {
+          let userNotificationTitle, userNotificationMessage;
+
+          switch (status) {
+            case 'reviewed':
+              userNotificationTitle = 'Feedback Reviewed';
+              userNotificationMessage = `Your feedback "${feedback.title}" has been reviewed by our team.`;
+              break;
+            case 'in_progress':
+              userNotificationTitle = 'Feedback In Progress';
+              userNotificationMessage = `We're working on your feedback "${feedback.title}".`;
+              break;
+            case 'completed':
+              userNotificationTitle = 'Feedback Completed';
+              userNotificationMessage = `Your feedback "${feedback.title}" has been completed and implemented.`;
+              break;
+            case 'rejected':
+              userNotificationTitle = 'Feedback Update';
+              userNotificationMessage = `Your feedback "${feedback.title}" has been reviewed.${admin_notes ? ` Note: ${admin_notes}` : ''}`;
+              break;
+            case 'pending':
+              userNotificationTitle = 'Feedback Reopened';
+              userNotificationMessage = `Your feedback "${feedback.title}" has been reopened for review.`;
+              break;
+            default:
+              userNotificationTitle = 'Feedback Status Updated';
+              userNotificationMessage = `Your feedback "${feedback.title}" status has been updated to ${status}.`;
+          }
+
           const userNotificationData = {
             user_id: feedback.user_id,
-            title: 'Feedback Status Updated',
-            message: `Your feedback "${feedback.title}" has been ${status}${admin_notes ? `. Note: ${admin_notes}` : ''}`,
+            title: userNotificationTitle,
+            message: userNotificationMessage,
             type: 'feedback_updated',
             metadata: JSON.stringify({
               feedback_id: id,
               status,
               admin_notes,
-              title: feedback.title
+              title: feedback.title,
+              previous_status: feedback.status
             }),
             is_read: false,
             created_at: currentTime
@@ -256,7 +266,7 @@ const feedbackController = {
 
           await db('notifications').insert(userNotificationData);
 
-          // Send email to user about status update
+          // SEND EMAIL TO USER ABOUT STATUS UPDATE
           if (feedback.submitter_email) {
             await emailService.sendFeedbackStatusUpdate(
               feedback.submitter_email,
@@ -267,6 +277,27 @@ const feedbackController = {
             );
           }
         }
+
+        // CREATE ADMIN NOTIFICATION
+        const adminNotificationData = {
+          user_id: adminUser.id,
+          title: 'Feedback Status Updated',
+          message: `You updated feedback "${feedback.title}" to ${status}`,
+          type: 'feedback_updated',
+          metadata: JSON.stringify({
+            feedback_id: id,
+            previous_status: feedback.status,
+            new_status: status,
+            title: feedback.title,
+            admin_notes,
+            target_user_id: feedback.user_id,
+            target_user_name: feedback.submitter_first_name ? `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : 'Anonymous'
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+
+        await db('notifications').insert(adminNotificationData);
 
         res.json({
           success: true,
@@ -320,7 +351,7 @@ const feedbackController = {
         const currentTime = new Date();
         const adminUser = req.user;
 
-        // Create notification for assigned admin
+        // CREATE NOTIFICATION FOR ASSIGNED ADMIN
         const assignmentNotification = {
           user_id: assigned_to,
           title: 'Feedback Assigned',
@@ -339,7 +370,7 @@ const feedbackController = {
 
         await db('notifications').insert(assignmentNotification);
 
-        // Create admin notification for audit
+        // CREATE ADMIN NOTIFICATION FOR AUDIT
         const adminNotification = {
           user_id: adminUser.id,
           title: 'Feedback Assigned',
@@ -372,6 +403,64 @@ const feedbackController = {
       res.status(500).json({
         success: false,
         error: 'Server error assigning feedback'
+      });
+    }
+  },
+
+  // 🆕 DELETE FEEDBACK (admin only)
+  deleteFeedback: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminUser = req.user;
+
+      // Get feedback before deletion for notification
+      const feedback = await Feedback.getById(id);
+      if (!feedback) {
+        return res.status(404).json({
+          success: false,
+          error: 'Feedback not found'
+        });
+      }
+
+      const deleted = await db('feedback').where('id', id).delete();
+
+      if (deleted) {
+        const currentTime = new Date();
+
+        // CREATE ADMIN NOTIFICATION FOR DELETION
+        const adminNotificationData = {
+          user_id: adminUser.id,
+          title: 'Feedback Deleted',
+          message: `You deleted feedback: "${feedback.title}"`,
+          type: 'feedback_deleted',
+          metadata: JSON.stringify({
+            feedback_id: id,
+            title: feedback.title,
+            type: feedback.type,
+            priority: feedback.priority,
+            submitted_by: feedback.submitter_first_name ? `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : 'Anonymous'
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+
+        await db('notifications').insert(adminNotificationData);
+
+        res.json({
+          success: true,
+          message: 'Feedback deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'Feedback not found'
+        });
+      }
+    } catch (error) {
+      console.error('Delete feedback error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error deleting feedback'
       });
     }
   },
@@ -410,7 +499,7 @@ const feedbackController = {
       const feedback = await Feedback.getByStatus(status);
       
       res.json({
-        success: false,
+        success: true,
         feedback
       });
     } catch (error) {
