@@ -631,7 +631,79 @@ const feedbackController = {
     } catch (error) {
       console.error('Error handling deletion notification:', error);
     }
+  },
+  deleteUserFeedback: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Get feedback first to verify ownership
+    const feedback = await Feedback.getById(id);
+    
+    if (!feedback) {
+      return res.status(404).json({
+        success: false,
+        error: 'Feedback not found'
+      });
+    }
+
+    // Check if the feedback belongs to the current user
+    if (feedback.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You can only delete your own feedback'
+      });
+    }
+
+    // Check if feedback can be deleted (only pending or reviewed status)
+    const allowedStatuses = ['pending', 'reviewed'];
+    if (!allowedStatuses.includes(feedback.status)) {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot delete feedback with status "${feedback.status}". Only pending or reviewed feedback can be deleted.`
+      });
+    }
+
+    const deleted = await db('feedback').where('id', id).where('user_id', userId).delete();
+
+    if (deleted) {
+      // Create notification for user
+      const currentTime = new Date();
+      const userNotificationData = {
+        user_id: userId,
+        title: 'Feedback Deleted',
+        message: `Your feedback "${feedback.title}" has been deleted`,
+        type: 'feedback_deleted',
+        metadata: JSON.stringify({
+          feedback_id: id,
+          title: feedback.title,
+          type: feedback.type
+        }),
+        is_read: false,
+        created_at: currentTime
+      };
+
+      await db('notifications').insert(userNotificationData);
+
+      res.json({
+        success: true,
+        message: 'Feedback deleted successfully'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Feedback not found'
+      });
+    }
+  } catch (error) {
+    console.error('Delete user feedback error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error deleting feedback'
+    });
   }
+},
+
 };
 
 module.exports = feedbackController;

@@ -8,7 +8,7 @@ router.post('/feedback', authMiddleware, feedbackController.submitFeedback); // 
 
 // User routes (for logged-in users to view their own feedback)
 router.get('/feedback/my-feedback', authMiddleware, feedbackController.getUserFeedback);
-
+router.delete('/feedback/my-feedback/:id', authMiddleware, feedbackController.deleteUserFeedback);
 // Admin routes
 router.get('/feedback', authMiddleware, adminMiddleware, feedbackController.getAllFeedback);
 router.get('/feedback/stats', authMiddleware, adminMiddleware, feedbackController.getFeedbackStats);
