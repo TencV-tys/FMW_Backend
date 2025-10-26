@@ -10,7 +10,9 @@ const adminNotificationController = {
         .where(function() {
           this.where('notifications.type', 'general') // Admin action notifications
               .orWhere('users.role', 'admin') // Notifications sent to admins
-              .orWhere('notifications.user_id', req.user.id); // Current admin's notifications
+              .orWhere('notifications.user_id', req.user.id) // Current admin's notifications
+              // 🆕 ADD FEEDBACK NOTIFICATIONS
+              .orWhere('notifications.type', 'like', 'feedback_%'); // All feedback notifications
         })
         .select(
           'notifications.*',
@@ -43,7 +45,9 @@ const adminNotificationController = {
         .andWhere(function() {
           this.where('notifications.type', 'general')
               .orWhere('users.role', 'admin')
-              .orWhere('notifications.user_id', req.user.id);
+              .orWhere('notifications.user_id', req.user.id)
+              // 🆕 ADD FEEDBACK NOTIFICATIONS
+              .orWhere('notifications.type', 'like', 'feedback_%');
         })
         .select(
           'notifications.*',
@@ -84,7 +88,9 @@ const adminNotificationController = {
           this.where('notifications.type', type)
               .andWhere(function() {
                 this.where('users.role', 'admin')
-                    .orWhere('notifications.user_id', req.user.id);
+                    .orWhere('notifications.user_id', req.user.id)
+                    // 🆕 ADD FEEDBACK NOTIFICATIONS
+                    .orWhere('notifications.type', 'like', 'feedback_%');
               });
         })
         .orWhere(function() {
@@ -127,6 +133,24 @@ const adminNotificationController = {
                   this.where('notifications.message', 'like', '%deleted user%')
                       .orWhere('notifications.title', '=', 'User Deleted');
                 }
+                // 🆕 ADD FEEDBACK NOTIFICATION FILTERING
+                else if (type === 'feedback_submitted') {
+                  this.where('notifications.message', 'like', '%feedback submitted%')
+                      .orWhere('notifications.message', 'like', '%new feedback%')
+                      .orWhere('notifications.title', 'like', '%Feedback Submitted%');
+                } else if (type === 'feedback_updated') {
+                  this.where('notifications.message', 'like', '%feedback updated%')
+                      .orWhere('notifications.message', 'like', '%feedback status%')
+                      .orWhere('notifications.title', 'like', '%Feedback Updated%');
+                } else if (type === 'feedback_assigned') {
+                  this.where('notifications.message', 'like', '%feedback assigned%')
+                      .orWhere('notifications.message', 'like', '%assigned feedback%')
+                      .orWhere('notifications.title', 'like', '%Feedback Assigned%');
+                } else if (type === 'feedback_deleted') {
+                  this.where('notifications.message', 'like', '%feedback deleted%')
+                      .orWhere('notifications.message', 'like', '%deleted feedback%')
+                      .orWhere('notifications.title', 'like', '%Feedback Deleted%');
+                }
               });
         })
         .select(
@@ -159,7 +183,9 @@ const adminNotificationController = {
         .where(function() {
           this.where('notifications.type', 'general')
               .orWhere('users.role', 'admin')
-              .orWhere('notifications.user_id', req.user.id);
+              .orWhere('notifications.user_id', req.user.id)
+              // 🆕 ADD FEEDBACK NOTIFICATIONS
+              .orWhere('notifications.type', 'like', 'feedback_%');
         })
         .select(
           db.raw('COUNT(*) as total'),
@@ -173,7 +199,12 @@ const adminNotificationController = {
           db.raw('SUM(CASE WHEN type = "user_suspended" THEN 1 ELSE 0 END) as user_suspended'),
           db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
           db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
-          db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted')
+          db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted'),
+          // 🆕 ADD FEEDBACK STATS
+          db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
+          db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
+          db.raw('SUM(CASE WHEN type = "feedback_assigned" THEN 1 ELSE 0 END) as feedback_assigned'),
+          db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted')
         )
         .first();
 
@@ -182,16 +213,16 @@ const adminNotificationController = {
         stats: {
           total: parseInt(stats.total) || 0,
           unread: parseInt(stats.unread) || 0,
-          resolved: parseInt(stats.resolved) || 0,
-          removed: parseInt(stats.removed) || 0,
-          deleted: parseInt(stats.deleted) || 0,
           reports: parseInt(stats.reports) || 0,
-          admin_actions: parseInt(stats.admin_actions) || 0,
-          // 🎯 ADD USER ACTION COUNTS
           user_suspended: parseInt(stats.user_suspended) || 0,
           user_banned: parseInt(stats.user_banned) || 0,
           user_activated: parseInt(stats.user_activated) || 0,
-          user_deleted: parseInt(stats.user_deleted) || 0
+          user_deleted: parseInt(stats.user_deleted) || 0,
+          // 🆕 ADD FEEDBACK COUNTS
+          feedback_submitted: parseInt(stats.feedback_submitted) || 0,
+          feedback_updated: parseInt(stats.feedback_updated) || 0,
+          feedback_assigned: parseInt(stats.feedback_assigned) || 0,
+          feedback_deleted: parseInt(stats.feedback_deleted) || 0
         }
       });
     } catch (error) {
@@ -212,7 +243,9 @@ const adminNotificationController = {
         .where('id', id)
         .andWhere(function() {
           this.where('type', 'general')
-              .orWhere('user_id', req.user.id);
+              .orWhere('user_id', req.user.id)
+              // 🆕 ALLOW DELETING FEEDBACK NOTIFICATIONS
+              .orWhere('type', 'like', 'feedback_%');
         })
         .delete();
 
@@ -242,7 +275,9 @@ const adminNotificationController = {
       await db('notifications')
         .where(function() {
           this.where('type', 'general')
-              .orWhere('user_id', req.user.id);
+              .orWhere('user_id', req.user.id)
+              // 🆕 ALLOW CLEARING FEEDBACK NOTIFICATIONS
+              .orWhere('type', 'like', 'feedback_%');
         })
         .delete();
       
@@ -268,7 +303,9 @@ const adminNotificationController = {
         .where('id', id)
         .andWhere(function() {
           this.where('type', 'general')
-              .orWhere('user_id', req.user.id);
+              .orWhere('user_id', req.user.id)
+              // 🆕 ALLOW MARKING FEEDBACK NOTIFICATIONS AS READ
+              .orWhere('type', 'like', 'feedback_%');
         })
         .update({
           is_read: true,
@@ -301,7 +338,9 @@ const adminNotificationController = {
       await db('notifications')
         .where(function() {
           this.where('type', 'general')
-              .orWhere('user_id', req.user.id);
+              .orWhere('user_id', req.user.id)
+              // 🆕 ALLOW MARKING ALL FEEDBACK NOTIFICATIONS AS READ
+              .orWhere('type', 'like', 'feedback_%');
         })
         .update({
           is_read: true,
