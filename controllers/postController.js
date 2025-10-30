@@ -47,7 +47,7 @@ const postController = {
     }
   },
 
-  // NEW: Get single post by ID
+  // Get single post by ID
   getPostById: async (req, res) => {
     try {
       const { id } = req.params;
@@ -184,7 +184,7 @@ const postController = {
       });
 
       if (updated) {
-        // 🎯 NEW: Notify admins when user marks post as resolved
+        // Notify admins when user marks post as resolved
         if (status === 'Resolved') {
           await postController._notifyAdminsPostResolved(id, existingPost, req.user);
         }
@@ -228,11 +228,11 @@ const postController = {
         });
       }
 
-      // 🎯 NEW: Check monthly deletion limit
+      // Check monthly deletion limit
       const canDelete = await postController._checkDeletionLimit(userId);
       
       if (!canDelete.allowed) {
-        // 🎯 NEW: Notify user about deletion limit reached
+        // Notify user about deletion limit reached
         await postController._notifyUserDeletionLimitReached(userId, canDelete);
         
         return res.status(429).json({
@@ -248,10 +248,10 @@ const postController = {
       const deleted = await Post.delete(id);
 
       if (deleted) {
-        // 🎯 NEW: Track deletion in user's monthly count
+        // Track deletion in user's monthly count
         const newCount = await postController._trackUserDeletion(userId);
         
-        // 🎯 NEW: Notify user if they're approaching or reached limit
+        // Notify user if they're approaching or reached limit
         await postController._notifyUserDeletionCount(userId, newCount);
 
         res.json({
@@ -313,7 +313,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Get user's monthly deletion stats
+  // Get user's monthly deletion stats
   getUserDeletionStats: async (req, res) => {
     try {
       const userId = req.user.id;
@@ -332,7 +332,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: PRIVATE HELPER METHODS
+  // PRIVATE HELPER METHODS
 
   // Notify admins when user marks post as resolved
   _notifyAdminsPostResolved: async (postId, post, user) => {
@@ -481,7 +481,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Notify user when deletion limit is reached
+  // Notify user when deletion limit is reached
   _notifyUserDeletionLimitReached: async (userId, limitInfo) => {
     try {
       const currentTime = new Date();
@@ -513,7 +513,7 @@ const postController = {
     }
   },
 
-  // 🎯 NEW: Notify user about their current deletion count
+  // Notify user about their current deletion count
   _notifyUserDeletionCount: async (userId, newCount) => {
     try {
       const MONTHLY_DELETION_LIMIT = 3;
