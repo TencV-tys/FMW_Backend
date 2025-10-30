@@ -28,4 +28,7 @@ router.put('/posts/:id', authMiddleware, upload.single('photo'), postController.
 // Get single post for editing
 router.get('/posts/:id', authMiddleware, postController.getPostById);
 
+// 🎯 NEW: Get user deletion statistics
+router.get('/posts/deletion-stats', authMiddleware, postController.getUserDeletionStats);
+
 module.exports = router;

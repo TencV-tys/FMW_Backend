@@ -12,7 +12,9 @@ const adminNotificationController = {
               .orWhere('users.role', 'admin') // Notifications sent to admins
               .orWhere('notifications.user_id', req.user.id) // Current admin's notifications
               // 🆕 ADD FEEDBACK NOTIFICATIONS
-              .orWhere('notifications.type', 'like', 'feedback_%'); // All feedback notifications
+              .orWhere('notifications.type', 'like', 'feedback_%') // All feedback notifications
+              // 🆕 ADD USER RESOLVED POST NOTIFICATIONS
+              .orWhere('notifications.type', 'post_resolved_by_user'); // User resolved posts
         })
         .select(
           'notifications.*',
@@ -47,7 +49,9 @@ const adminNotificationController = {
               .orWhere('users.role', 'admin')
               .orWhere('notifications.user_id', req.user.id)
               // 🆕 ADD FEEDBACK NOTIFICATIONS
-              .orWhere('notifications.type', 'like', 'feedback_%');
+              .orWhere('notifications.type', 'like', 'feedback_%')
+              // 🆕 ADD USER RESOLVED POST NOTIFICATIONS
+              .orWhere('notifications.type', 'post_resolved_by_user');
         })
         .select(
           'notifications.*',
@@ -90,7 +94,9 @@ const adminNotificationController = {
                 this.where('users.role', 'admin')
                     .orWhere('notifications.user_id', req.user.id)
                     // 🆕 ADD FEEDBACK NOTIFICATIONS
-                    .orWhere('notifications.type', 'like', 'feedback_%');
+                    .orWhere('notifications.type', 'like', 'feedback_%')
+                    // 🆕 ADD USER RESOLVED POST NOTIFICATIONS
+                    .orWhere('notifications.type', 'post_resolved_by_user');
               });
         })
         .orWhere(function() {
@@ -147,6 +153,12 @@ const adminNotificationController = {
                       .orWhere('notifications.message', 'like', '%deleted feedback%')
                       .orWhere('notifications.title', 'like', '%Feedback Deleted%');
                 }
+                // 🆕 ADD USER RESOLVED POST NOTIFICATION FILTERING
+                else if (type === 'post_resolved_by_user') {
+                  this.where('notifications.message', 'like', '%marked post%resolved%')
+                      .orWhere('notifications.message', 'like', '%resolved post%')
+                      .orWhere('notifications.title', 'like', '%Post Marked as Resolved%');
+                }
                 // 🆕 ADD GENERAL NOTIFICATION FILTERING
                 else if (type === 'general') {
                   this.where('notifications.message', 'like', '%') // Match all general notifications
@@ -186,7 +198,9 @@ const adminNotificationController = {
               .orWhere('users.role', 'admin')
               .orWhere('notifications.user_id', req.user.id)
               // 🆕 ADD FEEDBACK NOTIFICATIONS
-              .orWhere('notifications.type', 'like', 'feedback_%');
+              .orWhere('notifications.type', 'like', 'feedback_%')
+              // 🆕 ADD USER RESOLVED POST NOTIFICATIONS
+              .orWhere('notifications.type', 'post_resolved_by_user');
         })
         .select(
           db.raw('COUNT(*) as total'),
@@ -204,7 +218,9 @@ const adminNotificationController = {
           // 🆕 ADD FEEDBACK STATS (REMOVED feedback_assigned)
           db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
           db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
-          db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted')
+          db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted'),
+          // 🆕 ADD USER RESOLVED POST STATS
+          db.raw('SUM(CASE WHEN type = "post_resolved_by_user" THEN 1 ELSE 0 END) as user_resolved_posts')
         )
         .first();
 
@@ -221,7 +237,9 @@ const adminNotificationController = {
           // 🆕 ADD FEEDBACK COUNTS (REMOVED feedback_assigned)
           feedback_submitted: parseInt(stats.feedback_submitted) || 0,
           feedback_updated: parseInt(stats.feedback_updated) || 0,
-          feedback_deleted: parseInt(stats.feedback_deleted) || 0
+          feedback_deleted: parseInt(stats.feedback_deleted) || 0,
+          // 🆕 ADD USER RESOLVED POSTS COUNT
+          user_resolved_posts: parseInt(stats.user_resolved_posts) || 0
         }
       });
     } catch (error) {
@@ -244,7 +262,9 @@ const adminNotificationController = {
           this.where('type', 'general')
               .orWhere('user_id', req.user.id)
               // 🆕 ALLOW DELETING FEEDBACK NOTIFICATIONS
-              .orWhere('type', 'like', 'feedback_%');
+              .orWhere('type', 'like', 'feedback_%')
+              // 🆕 ALLOW DELETING USER RESOLVED POST NOTIFICATIONS
+              .orWhere('type', 'post_resolved_by_user');
         })
         .delete();
 
@@ -276,7 +296,9 @@ const adminNotificationController = {
           this.where('type', 'general')
               .orWhere('user_id', req.user.id)
               // 🆕 ALLOW CLEARING FEEDBACK NOTIFICATIONS
-              .orWhere('type', 'like', 'feedback_%');
+              .orWhere('type', 'like', 'feedback_%')
+              // 🆕 ALLOW CLEARING USER RESOLVED POST NOTIFICATIONS
+              .orWhere('type', 'post_resolved_by_user');
         })
         .delete();
       
@@ -304,7 +326,9 @@ const adminNotificationController = {
           this.where('type', 'general')
               .orWhere('user_id', req.user.id)
               // 🆕 ALLOW MARKING FEEDBACK NOTIFICATIONS AS READ
-              .orWhere('type', 'like', 'feedback_%');
+              .orWhere('type', 'like', 'feedback_%')
+              // 🆕 ALLOW MARKING USER RESOLVED POST NOTIFICATIONS AS READ
+              .orWhere('type', 'post_resolved_by_user');
         })
         .update({
           is_read: true,
@@ -339,7 +363,9 @@ const adminNotificationController = {
           this.where('type', 'general')
               .orWhere('user_id', req.user.id)
               // 🆕 ALLOW MARKING ALL FEEDBACK NOTIFICATIONS AS READ
-              .orWhere('type', 'like', 'feedback_%');
+              .orWhere('type', 'like', 'feedback_%')
+              // 🆕 ALLOW MARKING ALL USER RESOLVED POST NOTIFICATIONS AS READ
+              .orWhere('type', 'post_resolved_by_user');
         })
         .update({
           is_read: true,

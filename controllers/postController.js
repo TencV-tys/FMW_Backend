@@ -144,7 +144,7 @@ const postController = {
     }
   },
 
-  // Update post status
+  // Update post status - WITH ADMIN NOTIFICATION FOR RESOLVED POSTS
   updatePostStatus: async (req, res) => {
     try {
       const { id } = req.params;
@@ -184,6 +184,11 @@ const postController = {
       });
 
       if (updated) {
+        // 🎯 NEW: Notify admins when user marks post as resolved
+        if (status === 'Resolved') {
+          await postController._notifyAdminsPostResolved(id, existingPost, req.user);
+        }
+
         res.json({
           success: true,
           message: `Post status updated to ${status} successfully!`
@@ -200,10 +205,11 @@ const postController = {
     }
   },
 
-  // Delete post
+  // Delete post - WITH MONTHLY LIMIT CHECK AND USER NOTIFICATION
   deletePost: async (req, res) => {
     try {
       const { id } = req.params;
+      const userId = req.user.id;
 
       // First, check if post exists and belongs to user
       const existingPost = await Post.getById(id);
@@ -215,19 +221,47 @@ const postController = {
         });
       }
 
-      if (existingPost.user_id !== req.user.id) {
+      if (existingPost.user_id !== userId) {
         return res.status(403).json({
           success: false,
           error: 'Access denied. You can only delete your own posts.'
         });
       }
 
+      // 🎯 NEW: Check monthly deletion limit
+      const canDelete = await postController._checkDeletionLimit(userId);
+      
+      if (!canDelete.allowed) {
+        // 🎯 NEW: Notify user about deletion limit reached
+        await postController._notifyUserDeletionLimitReached(userId, canDelete);
+        
+        return res.status(429).json({
+          success: false,
+          error: `Monthly deletion limit reached. You can only delete ${canDelete.limit} posts per month.`,
+          limitReached: true,
+          currentMonthDeletions: canDelete.currentCount,
+          monthlyLimit: canDelete.limit,
+          requiresAdminApproval: true
+        });
+      }
+
       const deleted = await Post.delete(id);
 
       if (deleted) {
+        // 🎯 NEW: Track deletion in user's monthly count
+        const newCount = await postController._trackUserDeletion(userId);
+        
+        // 🎯 NEW: Notify user if they're approaching or reached limit
+        await postController._notifyUserDeletionCount(userId, newCount);
+
         res.json({
           success: true,
-          message: 'Post deleted successfully!'
+          message: 'Post deleted successfully!',
+          deletionInfo: {
+            currentMonthDeletions: newCount,
+            monthlyLimit: canDelete.limit,
+            remainingDeletions: canDelete.limit - newCount
+          }
         });
       } else {
         throw new Error('Failed to delete post');
@@ -276,6 +310,272 @@ const postController = {
     } catch (error) {
       console.error('Get form data error:', error);
       res.status(500).json({ success: false, error: 'Server error fetching form data' });
+    }
+  },
+
+  // 🎯 NEW: Get user's monthly deletion stats
+  getUserDeletionStats: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const stats = await postController._getUserDeletionStats(userId);
+      
+      res.json({
+        success: true,
+        stats
+      });
+    } catch (error) {
+      console.error('Get user deletion stats error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error fetching deletion statistics'
+      });
+    }
+  },
+
+  // 🎯 NEW: PRIVATE HELPER METHODS
+
+  // Notify admins when user marks post as resolved
+  _notifyAdminsPostResolved: async (postId, post, user) => {
+    try {
+      const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
+      const currentTime = new Date();
+      const notificationsToInsert = [];
+
+      for (const admin of adminUsers) {
+        const notificationData = {
+          user_id: admin.id,
+          title: 'Post Marked as Resolved',
+          message: `User ${user.first_name} ${user.last_name} marked post "${post.title}" as resolved`,
+          type: 'post_resolved_by_user',
+          metadata: JSON.stringify({
+            post_id: postId,
+            post_title: post.title,
+            resolved_by_user_id: user.id,
+            resolved_by_user_name: `${user.first_name} ${user.last_name}`,
+            resolved_at: currentTime
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+        notificationsToInsert.push(notificationData);
+      }
+
+      if (notificationsToInsert.length > 0) {
+        await db('notifications').insert(notificationsToInsert);
+      }
+
+      console.log(`✅ Notified ${adminUsers.length} admins about resolved post ${postId}`);
+    } catch (error) {
+      console.error('Error notifying admins about resolved post:', error);
+    }
+  },
+
+  // Check user's monthly deletion limit
+  _checkDeletionLimit: async (userId) => {
+    try {
+      const MONTHLY_DELETION_LIMIT = 3; // 3 posts per month
+      
+      // Get current month and year
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1; // 1-12
+      const currentYear = now.getFullYear();
+      
+      // Get user's deletion count for current month
+      const result = await db('user_post_deletions')
+        .where('user_id', userId)
+        .where('month', currentMonth)
+        .where('year', currentYear)
+        .first();
+      
+      const currentCount = result ? result.deletion_count : 0;
+      
+      return {
+        allowed: currentCount < MONTHLY_DELETION_LIMIT,
+        currentCount,
+        limit: MONTHLY_DELETION_LIMIT
+      };
+    } catch (error) {
+      console.error('Error checking deletion limit:', error);
+      // In case of error, allow deletion to not block users
+      return { allowed: true, currentCount: 0, limit: 3 };
+    }
+  },
+
+  // Track user deletion in monthly count
+  _trackUserDeletion: async (userId) => {
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      
+      // Check if record exists for this month
+      const existingRecord = await db('user_post_deletions')
+        .where('user_id', userId)
+        .where('month', currentMonth)
+        .where('year', currentYear)
+        .first();
+      
+      let newCount;
+      
+      if (existingRecord) {
+        // Increment existing count
+        await db('user_post_deletions')
+          .where('id', existingRecord.id)
+          .increment('deletion_count', 1);
+        
+        newCount = existingRecord.deletion_count + 1;
+      } else {
+        // Create new record
+        await db('user_post_deletions').insert({
+          user_id: userId,
+          month: currentMonth,
+          year: currentYear,
+          deletion_count: 1,
+          created_at: now,
+          updated_at: now
+        });
+        
+        newCount = 1;
+      }
+      
+      console.log(`✅ Tracked deletion for user ${userId}, month ${currentMonth}/${currentYear}, count: ${newCount}`);
+      return newCount;
+    } catch (error) {
+      console.error('Error tracking user deletion:', error);
+      return 0;
+    }
+  },
+
+  // Get user's deletion statistics
+  _getUserDeletionStats: async (userId) => {
+    try {
+      const MONTHLY_DELETION_LIMIT = 3;
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      
+      // Get current month's deletion count
+      const result = await db('user_post_deletions')
+        .where('user_id', userId)
+        .where('month', currentMonth)
+        .where('year', currentYear)
+        .first();
+      
+      const currentCount = result ? result.deletion_count : 0;
+      const remaining = MONTHLY_DELETION_LIMIT - currentCount;
+      
+      return {
+        currentMonthDeletions: currentCount,
+        monthlyLimit: MONTHLY_DELETION_LIMIT,
+        remainingDeletions: remaining,
+        limitReached: currentCount >= MONTHLY_DELETION_LIMIT
+      };
+    } catch (error) {
+      console.error('Error getting user deletion stats:', error);
+      return {
+        currentMonthDeletions: 0,
+        monthlyLimit: 3,
+        remainingDeletions: 3,
+        limitReached: false
+      };
+    }
+  },
+
+  // 🎯 NEW: Notify user when deletion limit is reached
+  _notifyUserDeletionLimitReached: async (userId, limitInfo) => {
+    try {
+      const currentTime = new Date();
+      const user = await db('users').where('id', userId).select('first_name', 'last_name').first();
+      
+      if (!user) return;
+
+      const notificationData = {
+        user_id: userId,
+        title: 'Monthly Deletion Limit Reached',
+        message: `You have reached your monthly deletion limit of ${limitInfo.limit} posts. You cannot delete more posts this month. The limit will reset at the start of next month.`,
+        type: 'deletion_limit_reached',
+        metadata: JSON.stringify({
+          current_deletions: limitInfo.currentCount,
+          monthly_limit: limitInfo.limit,
+          limit_reached_at: currentTime,
+          reset_month: currentTime.getMonth() + 2 > 12 ? 1 : currentTime.getMonth() + 2,
+          reset_year: currentTime.getMonth() + 2 > 12 ? currentTime.getFullYear() + 1 : currentTime.getFullYear()
+        }),
+        is_read: false,
+        created_at: currentTime
+      };
+
+      await db('notifications').insert(notificationData);
+      
+      console.log(`✅ Notified user ${userId} about deletion limit reached: ${limitInfo.currentCount}/${limitInfo.limit}`);
+    } catch (error) {
+      console.error('Error notifying user about deletion limit:', error);
+    }
+  },
+
+  // 🎯 NEW: Notify user about their current deletion count
+  _notifyUserDeletionCount: async (userId, newCount) => {
+    try {
+      const MONTHLY_DELETION_LIMIT = 3;
+      const currentTime = new Date();
+      const user = await db('users').where('id', userId).select('first_name', 'last_name').first();
+      
+      if (!user) return;
+
+      let notificationData;
+
+      if (newCount === MONTHLY_DELETION_LIMIT) {
+        // User just reached the limit
+        notificationData = {
+          user_id: userId,
+          title: 'Monthly Deletion Limit Reached',
+          message: `You have reached your monthly deletion limit of ${MONTHLY_DELETION_LIMIT} posts. You cannot delete more posts this month. The limit will reset at the start of next month.`,
+          type: 'deletion_limit_reached',
+          metadata: JSON.stringify({
+            current_deletions: newCount,
+            monthly_limit: MONTHLY_DELETION_LIMIT,
+            limit_reached_at: currentTime
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+      } else if (newCount === MONTHLY_DELETION_LIMIT - 1) {
+        // User has one deletion left
+        notificationData = {
+          user_id: userId,
+          title: 'One Deletion Remaining',
+          message: `You have 1 deletion remaining this month. You can delete ${MONTHLY_DELETION_LIMIT - newCount} more post(s) this month.`,
+          type: 'deletion_warning',
+          metadata: JSON.stringify({
+            current_deletions: newCount,
+            monthly_limit: MONTHLY_DELETION_LIMIT,
+            remaining_deletions: MONTHLY_DELETION_LIMIT - newCount
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+      } else {
+        // Regular deletion notification
+        notificationData = {
+          user_id: userId,
+          title: 'Post Deleted',
+          message: `Your post has been deleted. You have ${MONTHLY_DELETION_LIMIT - newCount} deletion(s) remaining this month.`,
+          type: 'post_deleted',
+          metadata: JSON.stringify({
+            current_deletions: newCount,
+            monthly_limit: MONTHLY_DELETION_LIMIT,
+            remaining_deletions: MONTHLY_DELETION_LIMIT - newCount
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+      }
+
+      await db('notifications').insert(notificationData);
+      
+      console.log(`✅ Notified user ${userId} about deletion count: ${newCount}/${MONTHLY_DELETION_LIMIT}`);
+    } catch (error) {
+      console.error('Error notifying user about deletion count:', error);
     }
   }
 
