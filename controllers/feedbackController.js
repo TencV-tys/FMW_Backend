@@ -4,7 +4,7 @@ const emailService = require('../services/emailService');
 const db = require('../config/db');
 
 const feedbackController = {
-  // Submit feedback (users and anonymous)
+  // Submit feedback (authenticated users only)
   submitFeedback: async (req, res) => {
     try {
       const { type, title, description, priority = 'medium', metadata } = req.body;
@@ -14,6 +14,14 @@ const feedbackController = {
         return res.status(400).json({
           success: false,
           error: 'Type, title, and description are required'
+        });
+      }
+
+      // User must be authenticated
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          success: false,
+          error: 'Authentication required to submit feedback'
         });
       }
 
@@ -60,16 +68,13 @@ const feedbackController = {
         });
       }
 
-      // Get user ID from authenticated user
-      const userId = req.user?.id || null;
-     
+      const userId = req.user.id;
 
       // Prepare metadata with additional info
       const enhancedMetadata = {
         ...metadata,
         browser: req.headers['user-agent'],
         timestamp: new Date().toISOString(),
-        anonymous: !userId,
         ip_address: req.ip || req.connection.remoteAddress
       };
 
@@ -83,8 +88,6 @@ const feedbackController = {
         status: 'pending'
       };
 
-     
-
       const feedbackId = await Feedback.create(feedbackData);
 
       // Notify admins and user
@@ -93,8 +96,7 @@ const feedbackController = {
       res.status(201).json({
         success: true,
         message: 'Feedback submitted successfully!',
-        feedbackId,
-        anonymous: !userId
+        feedbackId
       });
     } catch (error) {
       console.error('Submit feedback error:', error);
@@ -108,7 +110,7 @@ const feedbackController = {
   // Get all feedback (admin only)
   getAllFeedback: async (req, res) => {
     try {
-      const { status, type, priority, assigned_to, page = 1, limit = 20 } = req.query;
+      const { status, type, priority, assigned_to } = req.query;
       
       const filters = {};
       if (status) filters.status = status;
@@ -116,16 +118,11 @@ const feedbackController = {
       if (priority) filters.priority = priority;
       if (assigned_to) filters.assigned_to = assigned_to;
 
-      const feedback = await Feedback.getAll(filters, parseInt(page), parseInt(limit));
+      const feedback = await Feedback.getAll(filters);
       
       res.json({
         success: true,
-        feedback,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: feedback.length
-        }
+        feedback
       });
     } catch (error) {
       console.error('Get all feedback error:', error);
@@ -167,18 +164,12 @@ const feedbackController = {
   getUserFeedback: async (req, res) => {
     try {
       const userId = req.user.id;
-      const { page = 1, limit = 10 } = req.query;
       
-      const feedback = await Feedback.getByUserId(userId, parseInt(page), parseInt(limit));
+      const feedback = await Feedback.getByUserId(userId);
       
       res.json({
         success: true,
-        feedback,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: feedback.length
-        }
+        feedback
       });
     } catch (error) {
       console.error('Get user feedback error:', error);
@@ -366,7 +357,6 @@ const feedbackController = {
   getFeedbackByStatus: async (req, res) => {
     try {
       const { status } = req.params;
-      const { page = 1, limit = 20 } = req.query;
       
       const validStatuses = ['pending', 'reviewed', 'in_progress', 'completed', 'rejected'];
       if (!validStatuses.includes(status)) {
@@ -376,22 +366,83 @@ const feedbackController = {
         });
       }
 
-      const feedback = await Feedback.getByStatus(status, parseInt(page), parseInt(limit));
+      const feedback = await Feedback.getByStatus(status);
       
       res.json({
         success: true,
-        feedback,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total: feedback.length
-        }
+        feedback
       });
     } catch (error) {
       console.error('Get feedback by status error:', error);
       res.status(500).json({
         success: false,
         error: 'Server error fetching feedback by status'
+      });
+    }
+  },
+
+  // Delete user's own feedback - ALLOW ALL STATUSES
+  deleteUserFeedback: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user.id;
+
+      // Get feedback first to verify ownership
+      const feedback = await Feedback.getById(id);
+      
+      if (!feedback) {
+        return res.status(404).json({
+          success: false,
+          error: 'Feedback not found'
+        });
+      }
+
+      // Check if the feedback belongs to the current user
+      if (feedback.user_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          error: 'You can only delete your own feedback'
+        });
+      }
+
+      // REMOVED STATUS RESTRICTION - Users can delete feedback with any status
+      const deleted = await db('feedback').where('id', id).where('user_id', userId).delete();
+
+      if (deleted) {
+        // Create notification for user
+        const currentTime = new Date();
+        const userNotificationData = {
+          user_id: userId,
+          title: 'Feedback Deleted',
+          message: `Your feedback "${feedback.title}" has been deleted`,
+          type: 'feedback_deleted',
+          metadata: JSON.stringify({
+            feedback_id: id,
+            title: feedback.title,
+            type: feedback.type,
+            status: feedback.status // Include the status for audit purposes
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+
+        await db('notifications').insert(userNotificationData);
+
+        res.json({
+          success: true,
+          message: 'Feedback deleted successfully'
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: 'Feedback not found'
+        });
+      }
+    } catch (error) {
+      console.error('Delete user feedback error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error deleting feedback'
       });
     }
   },
@@ -417,7 +468,7 @@ const feedbackController = {
             type: feedbackData.type,
             priority: feedbackData.priority,
             title: feedbackData.title,
-            submitted_by: user ? `${user.first_name} ${user.last_name}` : 'Anonymous'
+            submitted_by: `${user.first_name} ${user.last_name}`
           }),
           is_read: false,
           created_at: currentTime
@@ -432,7 +483,7 @@ const feedbackController = {
           feedbackData.title,
           feedbackData.description,
           feedbackData.priority,
-          user ? `${user.first_name} ${user.last_name}` : 'Anonymous User'
+          `${user.first_name} ${user.last_name}`
         );
       }
 
@@ -441,20 +492,17 @@ const feedbackController = {
         await db('notifications').insert(notificationsToInsert);
       }
 
-      // If user is logged in, create notification for them too
-      if (user && user.id) {
-        await Notification.create({
-          user_id: user.id,
-          title: 'Feedback Submitted',
-          message: `Thank you for your ${feedbackData.type} feedback! We will review it soon.`,
-          type: 'feedback_submitted',
-          metadata: JSON.stringify({ feedback_id: feedbackId }),
-          is_read: false
-        });
-      }
+      // Create notification for the user who submitted feedback
+      await Notification.create({
+        user_id: user.id,
+        title: 'Feedback Submitted',
+        message: `Thank you for your ${feedbackData.type} feedback! We will review it soon.`,
+        type: 'feedback_submitted',
+        metadata: JSON.stringify({ feedback_id: feedbackId }),
+        is_read: false
+      });
     } catch (error) {
       console.error('Error handling feedback notifications:', error);
-      // Don't throw error here to avoid breaking the main flow
     }
   },
 
@@ -511,7 +559,7 @@ const feedbackController = {
           admin_notes: adminNotes,
           target_user_id: feedback.user_id,
           target_user_name: feedback.submitter_first_name ? 
-            `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : 'Anonymous'
+            `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : null
         }),
         is_read: false,
         created_at: currentTime
@@ -620,8 +668,9 @@ const feedbackController = {
           title: feedback.title,
           type: feedback.type,
           priority: feedback.priority,
+          status: feedback.status, // Include status for audit
           submitted_by: feedback.submitter_first_name ? 
-            `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : 'Anonymous'
+            `${feedback.submitter_first_name} ${feedback.submitter_last_name}` : null
         }),
         is_read: false,
         created_at: currentTime
@@ -631,79 +680,7 @@ const feedbackController = {
     } catch (error) {
       console.error('Error handling deletion notification:', error);
     }
-  },
-  deleteUserFeedback: async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user.id;
-
-    // Get feedback first to verify ownership
-    const feedback = await Feedback.getById(id);
-    
-    if (!feedback) {
-      return res.status(404).json({
-        success: false,
-        error: 'Feedback not found'
-      });
-    }
-
-    // Check if the feedback belongs to the current user
-    if (feedback.user_id !== userId) {
-      return res.status(403).json({
-        success: false,
-        error: 'You can only delete your own feedback'
-      });
-    }
-
-    // Check if feedback can be deleted (only pending or reviewed status)
-    const allowedStatuses = ['pending', 'reviewed'];
-    if (!allowedStatuses.includes(feedback.status)) {
-      return res.status(400).json({
-        success: false,
-        error: `Cannot delete feedback with status "${feedback.status}". Only pending or reviewed feedback can be deleted.`
-      });
-    }
-
-    const deleted = await db('feedback').where('id', id).where('user_id', userId).delete();
-
-    if (deleted) {
-      // Create notification for user
-      const currentTime = new Date();
-      const userNotificationData = {
-        user_id: userId,
-        title: 'Feedback Deleted',
-        message: `Your feedback "${feedback.title}" has been deleted`,
-        type: 'feedback_deleted',
-        metadata: JSON.stringify({
-          feedback_id: id,
-          title: feedback.title,
-          type: feedback.type
-        }),
-        is_read: false,
-        created_at: currentTime
-      };
-
-      await db('notifications').insert(userNotificationData);
-
-      res.json({
-        success: true,
-        message: 'Feedback deleted successfully'
-      });
-    } else {
-      res.status(404).json({
-        success: false,
-        error: 'Feedback not found'
-      });
-    }
-  } catch (error) {
-    console.error('Delete user feedback error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error deleting feedback'
-    });
   }
-},
-
 };
 
 module.exports = feedbackController;

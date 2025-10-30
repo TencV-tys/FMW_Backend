@@ -3,12 +3,11 @@ const router = express.Router();
 const feedbackController = require('../controllers/feedbackController');
 const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
 
-// Public routes (anonymous feedback allowed)
-router.post('/feedback', authMiddleware, feedbackController.submitFeedback); // No auth required for anonymous feedback
-
-// User routes (for logged-in users to view their own feedback)
+// All feedback routes require authentication
+router.post('/feedback', authMiddleware, feedbackController.submitFeedback);
 router.get('/feedback/my-feedback', authMiddleware, feedbackController.getUserFeedback);
 router.delete('/feedback/my-feedback/:id', authMiddleware, feedbackController.deleteUserFeedback);
+
 // Admin routes
 router.get('/feedback', authMiddleware, adminMiddleware, feedbackController.getAllFeedback);
 router.get('/feedback/stats', authMiddleware, adminMiddleware, feedbackController.getFeedbackStats);
@@ -16,5 +15,6 @@ router.get('/feedback/status/:status', authMiddleware, adminMiddleware, feedback
 router.get('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.getFeedbackById);
 router.put('/feedback/:id/status', authMiddleware, adminMiddleware, feedbackController.updateFeedbackStatus);
 router.put('/feedback/:id/assign', authMiddleware, adminMiddleware, feedbackController.assignFeedback);
-router.delete('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback); 
+router.delete('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback);
+
 module.exports = router;
