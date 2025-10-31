@@ -147,7 +147,7 @@ const adminDeletionController = {
             .delete();
         }
 
-        // Reset user's deletion count for current month
+        // INCREMENT user's deletion count by 1 instead of resetting to 0
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();
 
@@ -157,11 +157,13 @@ const adminDeletionController = {
           .where('year', currentYear)
           .first();
 
+        const newDeletionCount = existingRecord ? existingRecord.deletion_count + 1 : 1;
+
         if (existingRecord) {
           await db('user_post_deletions')
             .where('id', existingRecord.id)
             .update({
-              deletion_count: 0,
+              deletion_count: newDeletionCount,
               updated_at: now
             });
         } else {
@@ -169,11 +171,13 @@ const adminDeletionController = {
             user_id: deletionRequest.user_id,
             month: currentMonth,
             year: currentYear,
-            deletion_count: 0,
+            deletion_count: newDeletionCount,
             created_at: now,
             updated_at: now
           });
         }
+
+        console.log(`User ${deletionRequest.user_id} deletion count incremented to ${newDeletionCount}`);
       }
 
       // Update the deletion request
@@ -192,7 +196,7 @@ const adminDeletionController = {
         user_id: deletionRequest.user_id,
         title: `Deletion Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
         message: action === 'approve' 
-          ? 'Your deletion request has been approved. Your deletion limit has been reset and you can now delete posts again.'
+          ? 'Your deletion request has been approved. The post has been deleted and this counts toward your monthly deletion limit.'
           : `Your deletion request has been rejected. ${admin_notes ? 'Reason: ' + admin_notes : ''}`,
         type: `deletion_request_${action}ed`,
         metadata: JSON.stringify({
@@ -345,131 +349,141 @@ const adminDeletionController = {
   },
 
   // Grant additional deletions to user
-  grantAdditionalDeletions: async (req, res) => {
-    const transaction = await db.transaction();
-    
-    try {
-      const { userId } = req.params;
-      const { additional_count = 1 } = req.body;
-      const adminUser = req.user;
+ // Grant additional deletions to user
+grantAdditionalDeletions: async (req, res) => {
+  const transaction = await db.transaction();
+  
+  try {
+    const { userId } = req.params;
+    const { additional_count = 1 } = req.body;
+    const adminUser = req.user;
 
-      console.log(`Granting ${additional_count} additional deletions to user ${userId}`);
+    console.log(`Granting ${additional_count} additional deletions to user ${userId}`);
 
-      // Get current month and year
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+    // Get current month and year
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
 
-      // Check if user exists
-      const user = await db('users')
-        .where('id', userId)
-        .select('id', 'first_name', 'last_name', 'email')
-        .first();
+    // Check if user exists
+    const user = await db('users')
+      .where('id', userId)
+      .select('id', 'first_name', 'last_name', 'email')
+      .first();
 
-      if (!user) {
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          error: 'User not found'
-        });
-      }
-
-      // Get current deletion count
-      const existingRecord = await db('user_post_deletions')
-        .where('user_id', userId)
-        .where('month', currentMonth)
-        .where('year', currentYear)
-        .first();
-
-      const currentCount = existingRecord ? existingRecord.deletion_count : 0;
-      const newCount = Math.max(0, currentCount - additional_count);
-
-      console.log(`Current count: ${currentCount}, new count: ${newCount}`);
-
-      // Update or create record
-      if (existingRecord) {
-        await db('user_post_deletions')
-          .where('id', existingRecord.id)
-          .update({
-            deletion_count: newCount,
-            updated_at: now
-          });
-      } else {
-        await db('user_post_deletions').insert({
-          user_id: userId,
-          month: currentMonth,
-          year: currentYear,
-          deletion_count: newCount,
-          created_at: now,
-          updated_at: now
-        });
-      }
-
-      // Create admin notification
-      const adminNotification = {
-        user_id: adminUser.id,
-        title: 'Additional Deletions Granted',
-        message: `You granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name} (${user.email})`,
-        type: 'deletions_granted',
-        metadata: JSON.stringify({
-          target_user_id: userId,
-          target_user_name: `${user.first_name} ${user.last_name}`,
-          target_user_email: user.email,
-          additional_count: additional_count,
-          previous_count: currentCount,
-          new_count: newCount,
-          performed_by: adminUser.id,
-          performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`,
-          granted_at: now
-        }),
-        is_read: false,
-        created_at: now
-      };
-
-      await db('notifications').insert(adminNotification);
-
-      // Create user notification
-      const userNotification = {
-        user_id: userId,
-        title: 'Additional Deletions Granted',
-        message: `Administrator granted you ${additional_count} additional deletion(s). You now have ${3 - newCount} deletion(s) remaining this month.`,
-        type: 'additional_deletions_granted',
-        metadata: JSON.stringify({
-          additional_count: additional_count,
-          remaining_deletions: 3 - newCount,
-          granted_by_admin: adminUser.id,
-          granted_by_admin_name: `${adminUser.first_name} ${adminUser.last_name}`,
-          granted_at: now
-        }),
-        is_read: false,
-        created_at: now
-      };
-
-      await db('notifications').insert(userNotification);
-
-      await transaction.commit();
-
-      console.log(`Successfully granted ${additional_count} deletions to user ${userId}`);
-
-      res.json({
-        success: true,
-        message: `Granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name}`,
-        user: {
-          id: userId,
-          deletion_count: newCount,
-          limit_reached: newCount >= 3,
-          remaining_deletions: 3 - newCount
-        }
-      });
-    } catch (error) {
+    if (!user) {
       await transaction.rollback();
-      console.error('Grant additional deletions error:', error);
-      res.status(500).json({
+      return res.status(404).json({
         success: false,
-        error: 'Server error granting additional deletions: ' + error.message
+        error: 'User not found'
       });
     }
+
+    // Get current deletion count
+    const existingRecord = await db('user_post_deletions')
+      .where('user_id', userId)
+      .where('month', currentMonth)
+      .where('year', currentYear)
+      .first();
+
+    const currentCount = existingRecord ? existingRecord.deletion_count : 0;
+    
+    // FIX: Ensure we don't go below 0, but also handle the case where user is over limit
+    const newCount = Math.max(0, currentCount - additional_count);
+    
+    // If user was over limit (currentCount > 3), we want to bring them back to at most 2
+    // so they have at least 1 deletion remaining
+    const effectiveNewCount = currentCount > 3 ? Math.min(2, newCount) : newCount;
+
+    console.log(`Current count: ${currentCount}, new count: ${effectiveNewCount}`);
+
+    // Update or create record
+    if (existingRecord) {
+      await db('user_post_deletions')
+        .where('id', existingRecord.id)
+        .update({
+          deletion_count: effectiveNewCount,
+          updated_at: now
+        });
+    } else {
+      await db('user_post_deletions').insert({
+        user_id: userId,
+        month: currentMonth,
+        year: currentYear,
+        deletion_count: effectiveNewCount,
+        created_at: now,
+        updated_at: now
+      });
+    }
+
+    const remainingDeletions = 3 - effectiveNewCount;
+
+    // Create admin notification
+    const adminNotification = {
+      user_id: adminUser.id,
+      title: 'Additional Deletions Granted',
+      message: `You granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name} (${user.email}). They now have ${remainingDeletions} deletion(s) remaining.`,
+      type: 'deletions_granted',
+      metadata: JSON.stringify({
+        target_user_id: userId,
+        target_user_name: `${user.first_name} ${user.last_name}`,
+        target_user_email: user.email,
+        additional_count: additional_count,
+        previous_count: currentCount,
+        new_count: effectiveNewCount,
+        remaining_deletions: remainingDeletions,
+        performed_by: adminUser.id,
+        performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`,
+        granted_at: now
+      }),
+      is_read: false,
+      created_at: now
+    };
+
+    await db('notifications').insert(adminNotification);
+
+    // Create user notification
+    const userNotification = {
+      user_id: userId,
+      title: 'Additional Deletions Granted',
+      message: `Administrator granted you ${additional_count} additional deletion(s). You now have ${remainingDeletions} deletion(s) remaining this month.`,
+      type: 'additional_deletions_granted',
+      metadata: JSON.stringify({
+        additional_count: additional_count,
+        remaining_deletions: remainingDeletions,
+        granted_by_admin: adminUser.id,
+        granted_by_admin_name: `${adminUser.first_name} ${adminUser.last_name}`,
+        granted_at: now
+      }),
+      is_read: false,
+      created_at: now
+    };
+
+    await db('notifications').insert(userNotification);
+
+    await transaction.commit();
+
+    console.log(`Successfully granted ${additional_count} deletions to user ${userId}. New count: ${effectiveNewCount}/3`);
+
+    res.json({
+      success: true,
+      message: `Granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name}. They now have ${remainingDeletions} deletion(s) remaining.`,
+      user: {
+        id: userId,
+        deletion_count: effectiveNewCount,
+        limit_reached: effectiveNewCount >= 3,
+        remaining_deletions: remainingDeletions
+      }
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Grant additional deletions error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error granting additional deletions: ' + error.message
+    });
   }
+}
 };
 
 module.exports = adminDeletionController;
