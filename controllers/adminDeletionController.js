@@ -36,74 +36,85 @@ const adminDeletionController = {
   },
 
   // Get all users with their deletion stats AND pending requests
-  getUsersDeletionStats: async (req, res) => {
-    try {
-      console.log('Fetching users deletion stats with requests...');
+  
+getUsersDeletionStats: async (req, res) => {
+  try {
+    console.log('Fetching users deletion stats with requests...');
+    
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+
+    // Get all users with their deletion counts
+    const users = await db('users')
+      .leftJoin('user_post_deletions', function() {
+        this.on('users.id', '=', 'user_post_deletions.user_id')
+          .andOn('user_post_deletions.month', '=', currentMonth)
+          .andOn('user_post_deletions.year', '=', currentYear);
+      })
+      .select(
+        'users.id',
+        'users.first_name',
+        'users.last_name',
+        'users.email',
+        'users.role',
+        'users.status',
+        'user_post_deletions.deletion_count',
+        'user_post_deletions.month',
+        'user_post_deletions.year'
+      )
+      .where('users.role', 'user')
+      .orderBy('user_post_deletions.deletion_count', 'desc');
+
+    // Get pending deletion requests count for each user
+    const pendingRequests = await db('deletion_requests')
+      .where('status', 'pending')
+      .groupBy('user_id')
+      .select('user_id', db.raw('COUNT(*) as pending_requests_count'));
+
+    const pendingRequestsMap = {};
+    pendingRequests.forEach(req => {
+      pendingRequestsMap[req.user_id] = req.pending_requests_count;
+    });
+
+    // 🎯 FIXED: Add limit reached flag, remaining deletions, and pending requests
+    const usersWithStats = users.map(user => {
+      const deletionCount = user.deletion_count || 0; // If no record, count is 0
+      const MONTHLY_LIMIT = 3;
       
-      const currentMonth = new Date().getMonth() + 1;
-      const currentYear = new Date().getFullYear();
+      // 🎯 FIX: Only mark as limit reached if they've actually reached the limit
+      const limitReached = deletionCount >= MONTHLY_LIMIT;
+      const remainingDeletions = Math.max(0, MONTHLY_LIMIT - deletionCount);
+      const pendingRequestsCount = pendingRequestsMap[user.id] || 0;
 
-      // Get all users with their deletion counts
-      const users = await db('users')
-        .leftJoin('user_post_deletions', function() {
-          this.on('users.id', '=', 'user_post_deletions.user_id')
-            .andOn('user_post_deletions.month', '=', currentMonth)
-            .andOn('user_post_deletions.year', '=', currentYear);
-        })
-        .select(
-          'users.id',
-          'users.first_name',
-          'users.last_name',
-          'users.email',
-          'users.role',
-          'users.status',
-          'user_post_deletions.deletion_count',
-          'user_post_deletions.month',
-          'user_post_deletions.year'
-        )
-        .where('users.role', 'user')
-        .orderBy('user_post_deletions.deletion_count', 'desc');
+      return {
+        ...user,
+        deletion_count: deletionCount,
+        limit_reached: limitReached, // 🎯 This should be false for users with 0-2 deletions
+        remaining_deletions: remainingDeletions,
+        pending_requests_count: pendingRequestsCount
+      };
+    });
 
-      // Get pending deletion requests count for each user
-      const pendingRequests = await db('deletion_requests')
-        .where('status', 'pending')
-        .groupBy('user_id')
-        .select('user_id', db.raw('COUNT(*) as pending_requests_count'));
+    console.log('Users with stats:', usersWithStats.map(u => ({
+      id: u.id,
+      name: `${u.first_name} ${u.last_name}`,
+      deletion_count: u.deletion_count,
+      limit_reached: u.limit_reached,
+      remaining: u.remaining_deletions
+    })));
 
-      const pendingRequestsMap = {};
-      pendingRequests.forEach(req => {
-        pendingRequestsMap[req.user_id] = req.pending_requests_count;
-      });
-
-      // Add limit reached flag, remaining deletions, and pending requests
-      const usersWithStats = users.map(user => {
-        const deletionCount = user.deletion_count || 0;
-        const limitReached = deletionCount >= 3;
-        const remainingDeletions = Math.max(0, 3 - deletionCount);
-        const pendingRequestsCount = pendingRequestsMap[user.id] || 0;
-
-        return {
-          ...user,
-          deletion_count: deletionCount,
-          limit_reached: limitReached,
-          remaining_deletions: remainingDeletions,
-          pending_requests_count: pendingRequestsCount
-        };
-      });
-
-      res.json({
-        success: true,
-        users: usersWithStats
-      });
-    } catch (error) {
-      console.error('Get users deletion stats error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error fetching users deletion stats: ' + error.message
-      });
-    }
-  },
-
+    res.json({
+      success: true,
+      users: usersWithStats
+    });
+  } catch (error) {
+    console.error('Get users deletion stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error fetching users deletion stats: ' + error.message
+    });
+  }
+},
   // Process deletion request (approve or reject) with email notifications
   processDeletionRequest: async (req, res) => {
     const transaction = await db.transaction();

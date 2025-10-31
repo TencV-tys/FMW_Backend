@@ -36,7 +36,16 @@ app.use('/api',reportRoutes);
 app.use('/api', feedbackRoutes);
 app.use('/api', contactRoutes);
 app.use('/api', adminDeletionRoutes); 
-
+// In app.js, add this after your CORS middleware
+app.use((req, res, next) => {
+  if (req.originalUrl.includes('deletion-stats')) {
+    console.log('🔍 INCOMING REQUEST:');
+    console.log('📍 Method:', req.method);
+    console.log('📍 URL:', req.originalUrl);
+    console.log('📍 Path:', req.path);
+  }
+  next();
+});
 
 const PORT = process.env.PORT || 8000;
 app.listen(PORT,() => {

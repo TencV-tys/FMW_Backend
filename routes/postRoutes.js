@@ -16,7 +16,10 @@ router.get('/posts/active', postController.getActivePosts);
 // Get user's own posts
 router.get('/posts/my-posts', authMiddleware, postController.getMyPosts);
 
-// Update post status (mark as resolved) - ADD THIS ROUTE
+// 🎯 FIX: Get user deletion statistics - MUST COME BEFORE :id routes!
+router.get('/posts/my-deletion-stats', authMiddleware, postController.getUserDeletionStats);
+
+// Update post status (mark as resolved)
 router.put('/posts/:id/status', authMiddleware, postController.updatePostStatus);
 
 // Delete post permanently
@@ -27,8 +30,5 @@ router.put('/posts/:id', authMiddleware, upload.single('photo'), postController.
 
 // Get single post for editing
 router.get('/posts/:id', authMiddleware, postController.getPostById);
-
-// 🎯 NEW: Get user deletion statistics
-router.get('/posts/deletion-stats', authMiddleware, postController.getUserDeletionStats);
 
 module.exports = router;
