@@ -5,8 +5,7 @@ const adminDeletionController = {
   // Get all deletion requests
   getDeletionRequests: async (req, res) => {
     try {
-      console.log('Fetching deletion requests...');
-
+      
       const deletionRequests = await db('deletion_requests')
         .join('users', 'deletion_requests.user_id', 'users.id')
         .leftJoin('posts', 'deletion_requests.post_id', 'posts.id')
@@ -22,8 +21,7 @@ const adminDeletionController = {
         )
         .orderBy('deletion_requests.created_at', 'desc');
 
-      console.log(`Found ${deletionRequests.length} deletion requests`);
-
+     
       res.json({
         success: true,
         requests: deletionRequests
@@ -180,8 +178,7 @@ const adminDeletionController = {
           });
         }
 
-        console.log(`User ${deletionRequest.user_id} deletion count incremented to ${newDeletionCount}`);
-      }
+   }
 
       // Update the deletion request
       await db('deletion_requests')
@@ -287,8 +284,6 @@ const adminDeletionController = {
       );
 
       await transaction.commit();
-
-      console.log(`Successfully ${action}ed deletion request ${requestId}`);
 
       res.json({
         success: true,
@@ -432,8 +427,6 @@ const adminDeletionController = {
 
       await transaction.commit();
 
-      console.log(`Successfully reset deletion count for user ${userId}`);
-
       res.json({
         success: true,
         message: `Deletion count reset successfully for ${user.first_name} ${user.last_name}`,
@@ -463,8 +456,7 @@ const adminDeletionController = {
       const { additional_count = 1 } = req.body;
       const adminUser = req.user;
 
-      console.log(`Granting ${additional_count} additional deletions to user ${userId}`);
-
+    
       // Get current month and year
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
@@ -500,8 +492,7 @@ const adminDeletionController = {
       // so they have at least 1 deletion remaining
       const effectiveNewCount = currentCount > 3 ? Math.min(2, newCount) : newCount;
 
-      console.log(`Current count: ${currentCount}, new count: ${effectiveNewCount}`);
-
+    
       // Update or create record
       if (existingRecord) {
         await db('user_post_deletions')
@@ -604,8 +595,7 @@ const adminDeletionController = {
 
       await transaction.commit();
 
-      console.log(`Successfully granted ${additional_count} deletions to user ${userId}. New count: ${effectiveNewCount}/3`);
-
+     
       res.json({
         success: true,
         message: `Granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name}. They now have ${remainingDeletions} deletion(s) remaining.`,

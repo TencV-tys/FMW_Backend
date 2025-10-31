@@ -2,37 +2,28 @@ const db = require('../config/db');
 const Notification = require('../models/Notification');
 
 const adminNotificationController = {
-  // Get only admin-related notifications
+  // Get only admin-related notifications - STRICTLY FIXED
   getAllNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
         .join('users', 'notifications.user_id', 'users.id')
         .where(function() {
-          this.where('users.role', 'admin') // Only notifications where the user is an admin
-            .orWhere('notifications.user_id', req.user.id) // Or notifications specifically for current admin
-            .orWhere('notifications.type', 'general') // General admin notifications
-            .orWhere('notifications.type', 'like', 'feedback_%') // Feedback notifications
-            .orWhere('notifications.type', 'post_resolved_by_user') // User resolved posts
-            .orWhere('notifications.type', 'like', 'deletion_%') // Deletion request notifications
-            .orWhere('notifications.type', 'like', '%deletions_granted%')
-            .orWhere('notifications.type', 'like', '%deletion_reset%');
+          // ONLY show notifications where the USER is an admin OR it's the current admin's personal notifications
+          this.where('users.role', 'admin') // User must be an admin
+            .orWhere('notifications.user_id', req.user.id); // Or it's the current admin's personal notification
         })
         .andWhere(function() {
-          // EXCLUDE regular user notifications that aren't system-wide
-          this.where('users.role', 'admin')
-            .orWhere('notifications.type', 'in', [
-              'general',
-              'feedback_submitted',
-              'feedback_updated', 
-              'feedback_deleted',
-              'post_resolved_by_user',
-              'deletion_request',
-              'deletion_request_submitted',
-              'deletion_request_approved',
-              'deletion_request_rejected',
-              'deletion_reset',
-              'additional_deletions_granted'
-            ]);
+          // AND only show admin system notification types
+          this.where('notifications.type', 'in', [
+            'general',
+            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+            'report_submitted',
+            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+            'post_resolved_by_user',
+            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+          ]);
         })
         .select(
           'notifications.*',
@@ -56,7 +47,7 @@ const adminNotificationController = {
     }
   },
 
-  // 🎯 Get unread notifications only - UPDATED FILTER
+  // 🎯 Get unread notifications only - STRICTLY FIXED
   getUnreadNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
@@ -64,13 +55,19 @@ const adminNotificationController = {
         .where('notifications.is_read', false)
         .andWhere(function() {
           this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id)
-            .orWhere('notifications.type', 'general')
-            .orWhere('notifications.type', 'like', 'feedback_%')
-            .orWhere('notifications.type', 'post_resolved_by_user')
-            .orWhere('notifications.type', 'like', 'deletion_%')
-            .orWhere('notifications.type', 'like', '%deletions_granted%')
-            .orWhere('notifications.type', 'like', '%deletion_reset%');
+            .orWhere('notifications.user_id', req.user.id);
+        })
+        .andWhere(function() {
+          this.where('notifications.type', 'in', [
+            'general',
+            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+            'report_submitted',
+            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+            'post_resolved_by_user',
+            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+          ]);
         })
         .select(
           'notifications.*',
@@ -94,7 +91,7 @@ const adminNotificationController = {
     }
   },
 
-  // Get notifications by type - ONLY ADMIN-RELATED NOTIFICATIONS
+  // Get notifications by type - STRICTLY FIXED
   getNotificationsByType: async (req, res) => {
     try {
       const { type } = req.params;
@@ -108,13 +105,19 @@ const adminNotificationController = {
         .where('notifications.type', type)
         .andWhere(function() {
           this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id)
-            .orWhere('notifications.type', 'general')
-            .orWhere('notifications.type', 'like', 'feedback_%')
-            .orWhere('notifications.type', 'post_resolved_by_user')
-            .orWhere('notifications.type', 'like', 'deletion_%')
-            .orWhere('notifications.type', 'like', '%deletions_granted%')
-            .orWhere('notifications.type', 'like', '%deletion_reset%');
+            .orWhere('notifications.user_id', req.user.id);
+        })
+        .andWhere(function() {
+          this.where('notifications.type', 'in', [
+            'general',
+            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+            'report_submitted',
+            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+            'post_resolved_by_user',
+            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+          ]);
         })
         .select(
           'notifications.*',
@@ -138,20 +141,26 @@ const adminNotificationController = {
     }
   },
 
-  // Get notification statistics for admin - FILTERED
+  // Get notification statistics for admin - STRICTLY FIXED
   getNotificationStats: async (req, res) => {
     try {
       const stats = await db('notifications')
         .join('users', 'notifications.user_id', 'users.id')
         .where(function() {
           this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id)
-            .orWhere('notifications.type', 'general')
-            .orWhere('notifications.type', 'like', 'feedback_%')
-            .orWhere('notifications.type', 'post_resolved_by_user')
-            .orWhere('notifications.type', 'like', 'deletion_%')
-            .orWhere('notifications.type', 'like', '%deletions_granted%')
-            .orWhere('notifications.type', 'like', '%deletion_reset%');
+            .orWhere('notifications.user_id', req.user.id);
+        })
+        .andWhere(function() {
+          this.where('notifications.type', 'in', [
+            'general',
+            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+            'report_submitted',
+            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+            'post_resolved_by_user',
+            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+          ]);
         })
         .select(
           db.raw('COUNT(*) as total'),
@@ -209,7 +218,7 @@ const adminNotificationController = {
     }
   },
 
-  // Delete notification (admin only deletes admin notifications)
+  // Delete notification - STRICTLY FIXED
   deleteNotification: async (req, res) => {
     try {
       const { id } = req.params;
@@ -217,14 +226,13 @@ const adminNotificationController = {
       const deleted = await db('notifications')
         .where('id', id)
         .andWhere(function() {
-          this.where('users.role', 'admin')
-            .orWhere('user_id', req.user.id)
-            .orWhere('type', 'general')
-            .orWhere('type', 'like', 'feedback_%')
-            .orWhere('type', 'post_resolved_by_user')
-            .orWhere('type', 'like', 'deletion_%')
-            .orWhere('type', 'like', '%deletions_granted%')
-            .orWhere('type', 'like', '%deletion_reset%');
+          this.where('user_id', req.user.id)
+            .orWhereExists(function() {
+              this.select('*')
+                .from('users')
+                .whereRaw('users.id = notifications.user_id')
+                .andWhere('users.role', 'admin');
+            });
         })
         .delete();
 
@@ -248,19 +256,18 @@ const adminNotificationController = {
     }
   },
 
-  // Clear only admin's notifications
+  // Clear only admin's notifications - STRICTLY FIXED
   clearAllNotifications: async (req, res) => {
     try {
       await db('notifications')
         .where(function() {
-          this.where('users.role', 'admin')
-            .orWhere('user_id', req.user.id)
-            .orWhere('type', 'general')
-            .orWhere('type', 'like', 'feedback_%')
-            .orWhere('type', 'post_resolved_by_user')
-            .orWhere('type', 'like', 'deletion_%')
-            .orWhere('type', 'like', '%deletions_granted%')
-            .orWhere('type', 'like', '%deletion_reset%');
+          this.where('user_id', req.user.id)
+            .orWhereExists(function() {
+              this.select('*')
+                .from('users')
+                .whereRaw('users.id = notifications.user_id')
+                .andWhere('users.role', 'admin');
+            });
         })
         .delete();
       
@@ -277,7 +284,7 @@ const adminNotificationController = {
     }
   },
 
-  // Mark notification as read (admin version)
+  // Mark notification as read - STRICTLY FIXED
   markAsRead: async (req, res) => {
     try {
       const { id } = req.params;
@@ -285,14 +292,13 @@ const adminNotificationController = {
       const updated = await db('notifications')
         .where('id', id)
         .andWhere(function() {
-          this.where('users.role', 'admin')
-            .orWhere('user_id', req.user.id)
-            .orWhere('type', 'general')
-            .orWhere('type', 'like', 'feedback_%')
-            .orWhere('type', 'post_resolved_by_user')
-            .orWhere('type', 'like', 'deletion_%')
-            .orWhere('type', 'like', '%deletions_granted%')
-            .orWhere('type', 'like', '%deletion_reset%');
+          this.where('user_id', req.user.id)
+            .orWhereExists(function() {
+              this.select('*')
+                .from('users')
+                .whereRaw('users.id = notifications.user_id')
+                .andWhere('users.role', 'admin');
+            });
         })
         .update({
           is_read: true,
@@ -319,19 +325,18 @@ const adminNotificationController = {
     }
   },
 
-  // Mark all notifications as read (admin version)
+  // Mark all notifications as read - STRICTLY FIXED
   markAllAsRead: async (req, res) => {
     try {
       await db('notifications')
         .where(function() {
-          this.where('users.role', 'admin')
-            .orWhere('user_id', req.user.id)
-            .orWhere('type', 'general')
-            .orWhere('type', 'like', 'feedback_%')
-            .orWhere('type', 'post_resolved_by_user')
-            .orWhere('type', 'like', 'deletion_%')
-            .orWhere('type', 'like', '%deletions_granted%')
-            .orWhere('type', 'like', '%deletion_reset%');
+          this.where('user_id', req.user.id)
+            .orWhereExists(function() {
+              this.select('*')
+                .from('users')
+                .whereRaw('users.id = notifications.user_id')
+                .andWhere('users.role', 'admin');
+            });
         })
         .update({
           is_read: true,
