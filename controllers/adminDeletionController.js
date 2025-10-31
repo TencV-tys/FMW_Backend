@@ -39,7 +39,7 @@ const adminDeletionController = {
   
 getUsersDeletionStats: async (req, res) => {
   try {
-    console.log('Fetching users deletion stats with requests...');
+   
     
     const currentMonth = new Date().getMonth() + 1;
     const currentYear = new Date().getFullYear();
@@ -95,14 +95,7 @@ getUsersDeletionStats: async (req, res) => {
       };
     });
 
-    console.log('Users with stats:', usersWithStats.map(u => ({
-      id: u.id,
-      name: `${u.first_name} ${u.last_name}`,
-      deletion_count: u.deletion_count,
-      limit_reached: u.limit_reached,
-      remaining: u.remaining_deletions
-    })));
-
+  
     res.json({
       success: true,
       users: usersWithStats
