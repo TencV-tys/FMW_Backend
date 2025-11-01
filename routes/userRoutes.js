@@ -7,7 +7,8 @@ const {
   updateUserStatus,
   updateProfile,
   getProfile,
-  getUserPostStats
+  getUserPostStats,
+   getUsersWithReportStats 
 } = require('../controllers/userController');
 const { authMiddleware, adminMiddleware } = require('../middleware/authMiddleware');
 const upload = require('../config/multer'); // Make sure multer is imported
@@ -18,6 +19,8 @@ router.put('/users/profile', authMiddleware, upload.single('profile_photo'), upd
 
 // User management routes (admin only)
 router.get('/users', authMiddleware, adminMiddleware, getAllUsers);
+router.get('/admin/users-with-reports', authMiddleware, adminMiddleware, getUsersWithReportStats); 
+
 router.delete('/users/:id', authMiddleware, adminMiddleware, deleted);
 router.get('/users/stats', authMiddleware, adminMiddleware, getUsersStats);
 //  post statistics (for profile page)

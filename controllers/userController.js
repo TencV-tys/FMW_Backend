@@ -509,6 +509,76 @@ const checkSuspendedUsers = async () => {
   }
 };
 
+  // Add this function to your userController.js file:
+
+const getUsersWithReportStats = async (req, res) => {
+  try {
+    const users = await db('users')
+      .select(
+        'users.id', 
+        'users.first_name', 
+        'users.last_name', 
+        'users.email', 
+        'users.gender', 
+        'users.role', 
+        'users.status', 
+        'users.created_at', 
+        'users.suspended_until',
+        'users.suspension_reason',
+        'users.suspension_days'
+      )
+      .orderBy('users.created_at', 'desc');
+
+    // Get report statistics for each user
+    const usersWithStats = await Promise.all(
+      users.map(async (user) => {
+        const currentDate = new Date();
+        const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+        
+        // Monthly report count for user's posts
+        const monthlyReports = await db('reports')
+          .join('posts', 'reports.post_id', 'posts.id')
+          .where('posts.user_id', user.id)
+          .where('reports.reported_month', currentMonth)
+          .count('reports.id as count')
+          .first();
+
+        // All-time report count for user's posts
+        const allTimeReports = await db('reports')
+          .join('posts', 'reports.post_id', 'posts.id')
+          .where('posts.user_id', user.id)
+          .count('reports.id as count')
+          .first();
+
+        // Currently active posts with reports
+        const activePostsWithReports = await db('posts')
+          .leftJoin('reports', 'posts.id', 'reports.post_id')
+          .where('posts.user_id', user.id)
+          .where('posts.status', 'Active')
+          .select('posts.id')
+          .groupBy('posts.id')
+          .havingRaw('COUNT(reports.id) > 0');
+
+        return {
+          ...user,
+          monthly_report_count: parseInt(monthlyReports?.count) || 0,
+          total_report_count: parseInt(allTimeReports?.count) || 0,
+          active_posts_with_reports: activePostsWithReports.length || 0
+        };
+      })
+    );
+    
+    res.json(usersWithStats);
+  } catch (error) {
+    console.error('Get users with report stats error:', error);
+    res.status(500).json({
+      message: 'Error fetching users with report statistics'
+    });
+  }
+};
+
+
+
 module.exports = {
   getAllUsers,
   deleted,
@@ -517,5 +587,6 @@ module.exports = {
   updateProfile,
   getProfile,
   getUserPostStats,
-  checkSuspendedUsers
+  checkSuspendedUsers,
+    getUsersWithReportStats
 };
