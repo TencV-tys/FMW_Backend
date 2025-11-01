@@ -1,8 +1,6 @@
-// controllers/adminController.js - COMPLETE VERSION
 const db = require('../config/db');
 const emailService = require('../services/emailService');
 
-// controllers/adminController.js - UPDATED WITH REPORT VALIDATION
 const adminController = {
   // Get all posts for admin moderation
   getAllPosts: async (req, res) => {
@@ -85,7 +83,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Removed',
           message: `Your post "${post.title}" has been removed from public view${reason ? `. Reason: ${reason}` : ''}${force ? ' (Admin Override)' : ''}`,
-          type: 'post_removed',
+          type: 'post_removed', // User notification type
           metadata: JSON.stringify({
             post_id: id,
             action: 'removed',
@@ -110,12 +108,12 @@ const adminController = {
         );
       }
 
-      // Always create admin notification for audit trail
+      // 🎯 FIXED: Create admin notification with correct type for admin notifications
       const adminNotificationData = {
-        user_id: req.user.id,
+        user_id: req.user.id, // This goes to admin's notification panel
         title: 'Post Removed',
         message: `You removed post "${post.title}" by ${post.first_name} ${post.last_name} from public view${force ? ' (FORCED - Low reports)' : ''}`,
-        type: 'general',
+        type: 'post_removed', // 🎯 CHANGED FROM 'general' to 'post_removed'
         metadata: JSON.stringify({
           post_id: id,
           action: 'removed',
@@ -198,7 +196,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Deleted',
           message: `Your post "${post.title}" has been permanently deleted${reason ? `. Reason: ${reason}` : ''}${force ? ' (Admin Override)' : ''}`,
-          type: 'post_deleted',
+          type: 'post_deleted', // User notification type
           metadata: JSON.stringify({
             post_id: id,
             action: 'deleted',
@@ -223,12 +221,12 @@ const adminController = {
         );
       }
 
-      // Always create admin notification for audit trail
+      // 🎯 FIXED: Create admin notification with correct type for admin notifications
       const adminNotificationData = {
-        user_id: req.user.id,
+        user_id: req.user.id, // This goes to admin's notification panel
         title: 'Post Deletion',
         message: `You deleted post "${post.title}" by ${post.first_name} ${post.last_name}${force ? ' (FORCED - Low reports)' : ''}`,
-        type: 'general',
+        type: 'post_deleted', // 🎯 CHANGED FROM 'general' to 'post_deleted'
         metadata: JSON.stringify({
           post_id: id,
           action: 'deleted',
@@ -293,7 +291,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Restored',
           message: `Your post "${post.title}" has been restored and is now publicly visible`,
-          type: 'post_restored',
+          type: 'post_restored', // User notification type
           metadata: JSON.stringify({
             post_id: id,
             action: 'restored',
@@ -314,12 +312,12 @@ const adminController = {
         );
       }
 
-      // Always create admin notification for audit trail
+      // 🎯 FIXED: Create admin notification with correct type for admin notifications
       const adminNotificationData = {
-        user_id: req.user.id,
+        user_id: req.user.id, // This goes to admin's notification panel
         title: 'Post Restored',
         message: `You restored post "${post.title}" by ${post.first_name} ${post.last_name}`,
-        type: 'general',
+        type: 'post_restored', // 🎯 CHANGED FROM 'general' to 'post_restored'
         metadata: JSON.stringify({
           post_id: id,
           action: 'restored',
@@ -377,7 +375,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Resolved',
           message: `Your post "${post.title}" has been marked as resolved${reason ? `. Reason: ${reason}` : ''}`,
-          type: 'post_resolved',
+          type: 'post_resolved', // User notification type
           metadata: JSON.stringify({
             post_id: id,
             action: 'resolved',
@@ -400,12 +398,12 @@ const adminController = {
         );
       }
 
-      // Always create admin notification for audit trail
+      // 🎯 FIXED: Create admin notification with correct type for admin notifications
       const adminNotificationData = {
-        user_id: req.user.id,
+        user_id: req.user.id, // This goes to admin's notification panel
         title: 'Post Resolved',
         message: `You marked post "${post.title}" by ${post.first_name} ${post.last_name} as resolved`,
-        type: 'general',
+        type: 'post_resolved', // 🎯 CHANGED FROM 'general' to 'post_resolved'
         metadata: JSON.stringify({
           post_id: id,
           action: 'resolved',
