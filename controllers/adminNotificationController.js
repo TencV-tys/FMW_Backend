@@ -2,7 +2,7 @@ const db = require('../config/db');
 
 const adminNotificationController = {
   // Get all admin-related notifications - FIXED
-  getAllNotifications: async (req, res) => {
+getAllNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
         .leftJoin('users', 'notifications.user_id', 'users.id')
@@ -12,7 +12,7 @@ const adminNotificationController = {
             .orWhere('users.role', 'admin');
         })
         .andWhere(function() {
-          // Only show specific admin notification types (REMOVED 'general')
+          // Only show specific admin notification types (INCLUDES WARNING TYPES)
           this.where('notifications.type', 'in', [
             'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
             'report_submitted',
@@ -20,7 +20,9 @@ const adminNotificationController = {
             'feedback_submitted', 'feedback_updated', 'feedback_deleted',
             'post_resolved_by_user',
             'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
-            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
+            // 🆕 ADD WARNING TYPES FOR ADMIN AUDIT
+            'post_removed_warning', 'post_deleted_warning'
           ]);
         })
         .select(

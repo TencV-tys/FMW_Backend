@@ -16,7 +16,7 @@ exports.seed = async function (knex) {
     {
       first_name: 'System',
       last_name: 'Administrator',
-      email: 'admin@findmyway.com',
+      email: 'afmw203@gmail.com',
       password: hashedPassword,
       role: 'admin',
       gender: 'N/A',

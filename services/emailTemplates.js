@@ -319,7 +319,70 @@ const emailTemplates = {
         </div>
       </div>
     `;
-  }
+  },
+  // 🆕 POST ACTION WARNING TEMPLATE
+  postActionWarning: (userName, postTitle, action, reason, currentReports, requiredReports, isSerious = false) => {
+    const actions = {
+      removed: { verb: 'removed from public view', color: '#f59e0b' },
+      deleted: { verb: 'permanently deleted', color: '#ef4444' }
+    };
+
+    const config = actions[action] || actions.removed;
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: ${isSerious ? '#ef4444' : '#f59e0b'}; color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">${isSerious ? '⚠️ SERIOUS POLICY VIOLATION' : 'Community Guidelines Notice'}</h1>
+          <p style="margin: 10px 0 0 0; font-size: 1.1em;">Your post has been ${config.verb}</p>
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        ${isSerious ? `
+          <div style="background-color: #fef2f2; border: 2px solid #fecaca; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <h3 style="color: #dc2626; margin: 0 0 10px 0;">⚠️ Important Notice</h3>
+            <p style="margin: 0; color: #dc2626; font-weight: 500;">
+              This action was taken due to a serious violation of our community guidelines. 
+              Repeated violations may result in account suspension or permanent banning.
+            </p>
+          </div>
+        ` : `
+          <div style="background-color: #fffbeb; border: 2px solid #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0;">
+            <h3 style="color: #d97706; margin: 0 0 10px 0;">ℹ️ Notice</h3>
+            <p style="margin: 0; color: #d97706;">
+              This action was taken despite having reports below our normal threshold, 
+              indicating a potential violation of community standards.
+            </p>
+          </div>
+        `}
+        
+        <div style="background-color: white; border-left: 4px solid ${config.color}; padding: 15px; margin: 15px 0;">
+          <p style="margin: 0;"><strong>Post Title:</strong> ${postTitle}</p>
+          <p style="margin: 5px 0 0 0;"><strong>Action:</strong> ${config.verb}</p>
+          <p style="margin: 5px 0 0 0;"><strong>Current Reports:</strong> ${currentReports}/${requiredReports} (Below threshold)</p>
+          ${reason ? `<p style="margin: 5px 0 0 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+        </div>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h4 style="margin: 0 0 10px 0; color: #374151;">Recommended Actions:</h4>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li>Review our community guidelines</li>
+            <li>Ensure future posts comply with our standards</li>
+            <li>Contact support if you have questions</li>
+          </ul>
+        </div>
+        
+        <p>If you believe this was done in error, please contact our support team for review.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Admin Team</p>
+          <p style="margin-top: 10px; font-size: 12px;">
+            This is an automated warning message. Please do not reply to this email.
+          </p>
+        </div>
+      </div>
+    `;
+  },
 };
 
 module.exports = emailTemplates;

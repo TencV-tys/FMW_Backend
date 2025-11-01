@@ -1,4 +1,3 @@
-// controllers/reportController.js - UPDATED WITH EMAIL INTEGRATION
 const Report = require('../models/Report');
 const Notification = require('../models/Notification');
 const Post = require('../models/Post');
@@ -39,14 +38,45 @@ const reportController = {
         });
       }
 
+      // 🆕 CHECK IF USER ALREADY REPORTED THIS POST THIS MONTH
+      const currentDate = new Date();
+      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+      
+      const existingReport = await db('reports')
+        .where('post_id', post_id)
+        .where('reporter_id', reporter_id)
+        .where('reported_month', currentMonth)
+        .first();
+
+      if (existingReport) {
+        return res.status(400).json({
+          success: false,
+          error: 'You have already reported this post this month. You can report it again next month if the issue persists.'
+        });
+      }
+
       const reportData = {
         post_id: parseInt(post_id),
         reporter_id,
         reason,
-        additional_info: additional_info || ''
+        additional_info: additional_info || '',
+        reported_month: currentMonth,
+        created_at: currentDate,
+        updated_at: currentDate
       };
 
-      const reportId = await Report.create(reportData);
+      const [reportId] = await db('reports').insert(reportData);
+
+      // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT FOR THIS POST
+      const currentMonthReportCount = await reportController._getPostReportCountThisMonth(post_id);
+      
+      // 🆕 GET ALL-TIME UNIQUE REPORT COUNT FOR THIS POST
+      const allTimeReportCount = await reportController._getPostReportCountAllTime(post_id);
+
+      // 🆕 CHECK IF POST REACHES THRESHOLD FOR AUTOMATIC ACTION
+      if (currentMonthReportCount >= 3) {
+        await reportController._handlePostReportThreshold(post_id, currentMonthReportCount, 'monthly');
+      }
 
       // Get reporter info
       const reporter = await db('users')
@@ -62,9 +92,14 @@ const reportController = {
         await Notification.create({
           user_id: admin.id,
           title: 'New Report Submitted',
-          message: `A new report has been submitted for post "${post.title}"`,
+          message: `A new report has been submitted for post "${post.title}" (${currentMonthReportCount} unique reports this month, ${allTimeReportCount} total)`,
           type: 'report_submitted',
-          metadata: JSON.stringify({ report_id: reportId, post_id: post_id })
+          metadata: JSON.stringify({ 
+            report_id: reportId, 
+            post_id: post_id,
+            monthly_reports: currentMonthReportCount,
+            total_reports: allTimeReportCount
+          })
         });
 
         // Send email to admin about new report
@@ -75,7 +110,9 @@ const reportController = {
           reason,
           additional_info,
           reportId,
-          `${reporter.first_name} ${reporter.last_name}`
+          `${reporter.first_name} ${reporter.last_name}`,
+          currentMonthReportCount,
+          allTimeReportCount
         );
       }
 
@@ -83,9 +120,13 @@ const reportController = {
       await Notification.create({
         user_id: reporter_id,
         title: 'Report Submitted',
-        message: 'Your report has been submitted and is under review',
+        message: `Your report has been submitted. This post now has ${currentMonthReportCount} unique reports this month.`,
         type: 'report_submitted',
-        metadata: JSON.stringify({ report_id: reportId })
+        metadata: JSON.stringify({ 
+          report_id: reportId,
+          post_id: post_id,
+          monthly_reports: currentMonthReportCount
+        })
       });
 
       // Send confirmation email to reporter
@@ -95,13 +136,17 @@ const reportController = {
         post.title,
         reason,
         additional_info,
-        reportId
+        reportId,
+        currentMonthReportCount,
+        allTimeReportCount
       );
 
       res.status(201).json({
         success: true,
         message: 'Report submitted successfully',
-        reportId
+        reportId,
+        monthlyReports: currentMonthReportCount,
+        totalReports: allTimeReportCount
       });
     } catch (error) {
       console.error('Submit report error:', error);
@@ -109,6 +154,79 @@ const reportController = {
         success: false,
         error: 'Server error submitting report'
       });
+    }
+  },
+
+  // 🆕 NEW: Get current month's unique report count for a post
+  _getPostReportCountThisMonth: async (postId) => {
+    try {
+      const currentDate = new Date();
+      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+      
+      const result = await db('reports')
+        .where('post_id', postId)
+        .where('reported_month', currentMonth)
+        .count('id as report_count')
+        .first();
+      
+      return result ? parseInt(result.report_count) : 0;
+    } catch (error) {
+      console.error('Error getting post report count this month:', error);
+      return 0;
+    }
+  },
+
+  // 🆕 NEW: Get all-time unique report count for a post
+  _getPostReportCountAllTime: async (postId) => {
+    try {
+      const result = await db('reports')
+        .where('post_id', postId)
+        .count('id as report_count')
+        .first();
+      
+      return result ? parseInt(result.report_count) : 0;
+    } catch (error) {
+      console.error('Error getting post report count all time:', error);
+      return 0;
+    }
+  },
+
+  // 🆕 UPDATED: Handle when post reaches report threshold
+  _handlePostReportThreshold: async (postId, reportCount, period = 'monthly') => {
+    try {
+      const post = await Post.getById(postId);
+      if (!post) return;
+
+      const postAuthor = await db('users')
+        .where('id', post.user_id)
+        .select('id', 'email', 'first_name', 'last_name')
+        .first();
+
+      // Notify admins about threshold reached
+      const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
+      
+      for (const admin of adminUsers) {
+        await Notification.create({
+          user_id: admin.id,
+          title: `⚠️ Post Report Threshold Reached (${period})`,
+          message: `Post "${post.title}" has reached ${reportCount} unique ${period} reports and may require action.`,
+          type: 'report_threshold_reached',
+          metadata: JSON.stringify({
+            post_id: postId,
+            report_count: reportCount,
+            period: period,
+            threshold: 3,
+            post_title: post.title,
+            author_name: `${postAuthor.first_name} ${postAuthor.last_name}`
+          }),
+          is_read: false,
+          created_at: new Date()
+        });
+      }
+
+      console.log(`⚠️ Post ${postId} reached ${reportCount} unique ${period} reports`);
+    } catch (error) {
+      console.error('Error handling post report threshold:', error);
     }
   },
 

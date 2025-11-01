@@ -27,40 +27,58 @@ const adminController = {
     }
   },
 
-  // Remove post from public view - WITH REPORT VALIDATION
+  // Remove post from public view - WITH MONTHLY REPORT VALIDATION
   removePost: async (req, res) => {
     try {
       const { id } = req.params;
       const { reason, force = false } = req.body || {};
 
-      // Get post with report count
+      // Get post with user info
       const post = await db('posts')
         .where('posts.id', id)
         .join('users', 'posts.user_id', 'users.id')
-        .leftJoin('reports', 'posts.id', 'reports.post_id')
         .select(
           'posts.*',
           'users.first_name',
           'users.last_name',
-          'users.email',
-          db.raw('COUNT(reports.id) as report_count')
+          'users.email'
         )
-        .groupBy('posts.id', 'users.id')
         .first();
 
       if (!post) {
         return res.status(404).json({ success: false, error: 'Post not found' });
       }
 
-      // 🎯 NEW: Report-based validation
+      // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT
+      const currentDate = new Date();
+      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+      
+      const reportCountResult = await db('reports')
+        .where('post_id', id)
+        .where('reported_month', currentMonth)
+        .count('id as report_count')
+        .first();
+
+      const monthlyReportCount = reportCountResult ? parseInt(reportCountResult.report_count) : 0;
+
+      // 🆕 GET ALL-TIME REPORT COUNT
+      const allTimeReportResult = await db('reports')
+        .where('post_id', id)
+        .count('id as report_count')
+        .first();
+
+      const allTimeReportCount = allTimeReportResult ? parseInt(allTimeReportResult.report_count) : 0;
+
+      // 🎯 Report-based validation with MONTHLY counts
       const MIN_REPORTS_FOR_REMOVAL = 3;
-      const hasEnoughReports = post.report_count >= MIN_REPORTS_FOR_REMOVAL;
+      const hasEnoughReports = monthlyReportCount >= MIN_REPORTS_FOR_REMOVAL;
       
       if (!hasEnoughReports && !force) {
         return res.status(400).json({
           success: false,
-          error: `Post needs at least ${MIN_REPORTS_FOR_REMOVAL} reports to be removed. Currently has ${post.report_count} reports.`,
-          reportCount: post.report_count,
+          error: `Post needs at least ${MIN_REPORTS_FOR_REMOVAL} unique user reports this month to be removed. Currently has ${monthlyReportCount} unique monthly reports.`,
+          monthlyReportCount: monthlyReportCount,
+          totalReportCount: allTimeReportCount,
           requiredCount: MIN_REPORTS_FOR_REMOVAL,
           canForce: true
         });
@@ -77,20 +95,55 @@ const adminController = {
       const currentTime = new Date();
       const notificationsToInsert = [];
 
-      // Only create user notification if post owner is NOT the admin
-      if (post.user_id !== req.user.id) {
+      // 🆕 USER WARNING SYSTEM: Check if this is a forced action with low reports
+      if (force && monthlyReportCount < MIN_REPORTS_FOR_REMOVAL) {
+        // Create warning notification for user
+        const warningNotification = {
+          user_id: post.user_id,
+          title: 'Post Removed - Warning',
+          message: `Your post "${post.title}" was removed by administrator despite having only ${monthlyReportCount} report(s) this month. Please review community guidelines.${reason ? ` Reason: ${reason}` : ''}`,
+          type: 'post_removed_warning',
+          metadata: JSON.stringify({
+            post_id: id,
+            action: 'removed_forced',
+            admin_id: req.user.id,
+            reason: reason || 'Post removed by administrator (forced)',
+            post_title: post.title,
+            monthly_report_count: monthlyReportCount,
+            total_report_count: allTimeReportCount,
+            forced: true,
+            warning_type: 'low_reports_override'
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+        notificationsToInsert.push(warningNotification);
+
+        // Send warning email to user
+        await emailService.sendPostActionWarning(
+          post.email,
+          `${post.first_name} ${post.last_name}`,
+          'removed',
+          post.title,
+          reason,
+          monthlyReportCount,
+          MIN_REPORTS_FOR_REMOVAL
+        );
+      } else {
+        // Regular notification (not forced or has enough reports)
         const userNotificationData = {
           user_id: post.user_id,
           title: 'Post Removed',
-          message: `Your post "${post.title}" has been removed from public view${reason ? `. Reason: ${reason}` : ''}${force ? ' (Admin Override)' : ''}`,
-          type: 'post_removed', // User notification type
+          message: `Your post "${post.title}" has been removed from public view${reason ? `. Reason: ${reason}` : ''}`,
+          type: 'post_removed',
           metadata: JSON.stringify({
             post_id: id,
             action: 'removed',
             admin_id: req.user.id,
             reason: reason || 'Post removed by administrator',
             post_title: post.title,
-            report_count: post.report_count,
+            monthly_report_count: monthlyReportCount,
+            total_report_count: allTimeReportCount,
             forced: force
           }),
           is_read: false,
@@ -98,7 +151,7 @@ const adminController = {
         };
         notificationsToInsert.push(userNotificationData);
 
-        // Send email notification to user
+        // Send regular email notification
         await emailService.sendPostActionNotification(
           post.email,
           `${post.first_name} ${post.last_name}`,
@@ -108,12 +161,12 @@ const adminController = {
         );
       }
 
-      // 🎯 FIXED: Create admin notification with correct type for admin notifications
+      // Always create admin notification for audit trail
       const adminNotificationData = {
-        user_id: req.user.id, // This goes to admin's notification panel
+        user_id: req.user.id,
         title: 'Post Removed',
-        message: `You removed post "${post.title}" by ${post.first_name} ${post.last_name} from public view${force ? ' (FORCED - Low reports)' : ''}`,
-        type: 'post_removed', // 🎯 CHANGED FROM 'general' to 'post_removed'
+        message: `You removed post "${post.title}" by ${post.first_name} ${post.last_name} from public view${force ? ' (FORCED - Low monthly reports)' : ''}`,
+        type: 'post_removed',
         metadata: JSON.stringify({
           post_id: id,
           action: 'removed',
@@ -122,7 +175,8 @@ const adminController = {
           reason: reason || 'Post removed by administrator',
           post_title: post.title,
           performed_by: req.user.id,
-          report_count: post.report_count,
+          monthly_report_count: monthlyReportCount,
+          total_report_count: allTimeReportCount,
           forced: force
         }),
         is_read: false,
@@ -137,8 +191,10 @@ const adminController = {
       res.json({ 
         success: true, 
         message: `Post removed from public view${force ? ' (admin override)' : ''}`,
-        reportCount: post.report_count,
-        forced: force
+        monthlyReportCount: monthlyReportCount,
+        totalReportCount: allTimeReportCount,
+        forced: force,
+        userWarned: force && monthlyReportCount < MIN_REPORTS_FOR_REMOVAL
       });
     } catch (error) {
       console.error('Remove post error:', error);
@@ -146,40 +202,58 @@ const adminController = {
     }
   },
 
-  // Delete post permanently - WITH REPORT VALIDATION
+  // Delete post permanently - WITH MONTHLY REPORT VALIDATION
   deletePost: async (req, res) => {
     try {
       const { id } = req.params;
       const { reason, force = false } = req.body || {};
 
-      // Get post with report count
+      // Get post with user info
       const post = await db('posts')
         .where('posts.id', id)
         .join('users', 'posts.user_id', 'users.id')
-        .leftJoin('reports', 'posts.id', 'reports.post_id')
         .select(
           'posts.*',
           'users.first_name',
           'users.last_name',
-          'users.email',
-          db.raw('COUNT(reports.id) as report_count')
+          'users.email'
         )
-        .groupBy('posts.id', 'users.id')
         .first();
       
       if (!post) {
         return res.status(404).json({ success: false, error: 'Post not found' });
       }
 
-      // 🎯 NEW: Report-based validation for deletion (higher threshold)
+      // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT
+      const currentDate = new Date();
+      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+      
+      const reportCountResult = await db('reports')
+        .where('post_id', id)
+        .where('reported_month', currentMonth)
+        .count('id as report_count')
+        .first();
+
+      const monthlyReportCount = reportCountResult ? parseInt(reportCountResult.report_count) : 0;
+
+      // 🆕 GET ALL-TIME REPORT COUNT
+      const allTimeReportResult = await db('reports')
+        .where('post_id', id)
+        .count('id as report_count')
+        .first();
+
+      const allTimeReportCount = allTimeReportResult ? parseInt(allTimeReportResult.report_count) : 0;
+
+      // 🎯 Report-based validation for deletion with MONTHLY counts
       const MIN_REPORTS_FOR_DELETION = 5;
-      const hasEnoughReports = post.report_count >= MIN_REPORTS_FOR_DELETION;
+      const hasEnoughReports = monthlyReportCount >= MIN_REPORTS_FOR_DELETION;
       
       if (!hasEnoughReports && !force) {
         return res.status(400).json({
           success: false,
-          error: `Post needs at least ${MIN_REPORTS_FOR_DELETION} reports to be permanently deleted. Currently has ${post.report_count} reports.`,
-          reportCount: post.report_count,
+          error: `Post needs at least ${MIN_REPORTS_FOR_DELETION} unique user reports this month to be permanently deleted. Currently has ${monthlyReportCount} unique monthly reports.`,
+          monthlyReportCount: monthlyReportCount,
+          totalReportCount: allTimeReportCount,
           requiredCount: MIN_REPORTS_FOR_DELETION,
           canForce: true
         });
@@ -190,20 +264,56 @@ const adminController = {
       const currentTime = new Date();
       const notificationsToInsert = [];
 
-      // Only create user notification if post owner is NOT the admin
-      if (post.user_id !== req.user.id) {
+      // 🆕 USER WARNING SYSTEM: Check if this is a forced action with low reports
+      if (force && monthlyReportCount < MIN_REPORTS_FOR_DELETION) {
+        // Create warning notification for user
+        const warningNotification = {
+          user_id: post.user_id,
+          title: 'Post Deleted - Serious Warning',
+          message: `Your post "${post.title}" was permanently deleted by administrator despite having only ${monthlyReportCount} report(s) this month. This is a serious violation of community guidelines.${reason ? ` Reason: ${reason}` : ''}`,
+          type: 'post_deleted_warning',
+          metadata: JSON.stringify({
+            post_id: id,
+            action: 'deleted_forced',
+            admin_id: req.user.id,
+            reason: reason || 'Post permanently deleted (forced)',
+            post_title: post.title,
+            monthly_report_count: monthlyReportCount,
+            total_report_count: allTimeReportCount,
+            forced: true,
+            warning_type: 'severe_violation'
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+        notificationsToInsert.push(warningNotification);
+
+        // Send warning email to user
+        await emailService.sendPostActionWarning(
+          post.email,
+          `${post.first_name} ${post.last_name}`,
+          'deleted',
+          post.title,
+          reason,
+          monthlyReportCount,
+          MIN_REPORTS_FOR_DELETION,
+          true // serious violation
+        );
+      } else {
+        // Regular notification (not forced or has enough reports)
         const userNotificationData = {
           user_id: post.user_id,
           title: 'Post Deleted',
-          message: `Your post "${post.title}" has been permanently deleted${reason ? `. Reason: ${reason}` : ''}${force ? ' (Admin Override)' : ''}`,
-          type: 'post_deleted', // User notification type
+          message: `Your post "${post.title}" has been permanently deleted${reason ? `. Reason: ${reason}` : ''}`,
+          type: 'post_deleted',
           metadata: JSON.stringify({
             post_id: id,
             action: 'deleted',
             admin_id: req.user.id,
             reason: reason || 'Post permanently deleted',
             post_title: post.title,
-            report_count: post.report_count,
+            monthly_report_count: monthlyReportCount,
+            total_report_count: allTimeReportCount,
             forced: force
           }),
           is_read: false,
@@ -211,7 +321,7 @@ const adminController = {
         };
         notificationsToInsert.push(userNotificationData);
 
-        // Send email notification to user
+        // Send regular email notification
         await emailService.sendPostActionNotification(
           post.email,
           `${post.first_name} ${post.last_name}`,
@@ -221,12 +331,12 @@ const adminController = {
         );
       }
 
-      // 🎯 FIXED: Create admin notification with correct type for admin notifications
+      // Always create admin notification for audit trail
       const adminNotificationData = {
-        user_id: req.user.id, // This goes to admin's notification panel
+        user_id: req.user.id,
         title: 'Post Deletion',
-        message: `You deleted post "${post.title}" by ${post.first_name} ${post.last_name}${force ? ' (FORCED - Low reports)' : ''}`,
-        type: 'post_deleted', // 🎯 CHANGED FROM 'general' to 'post_deleted'
+        message: `You deleted post "${post.title}" by ${post.first_name} ${post.last_name}${force ? ' (FORCED - Low monthly reports)' : ''}`,
+        type: 'post_deleted',
         metadata: JSON.stringify({
           post_id: id,
           action: 'deleted',
@@ -235,7 +345,8 @@ const adminController = {
           reason: reason || 'Post permanently deleted',
           post_title: post.title,
           performed_by: req.user.id,
-          report_count: post.report_count,
+          monthly_report_count: monthlyReportCount,
+          total_report_count: allTimeReportCount,
           forced: force
         }),
         is_read: false,
@@ -250,8 +361,10 @@ const adminController = {
       res.json({ 
         success: true, 
         message: `Post deleted permanently${force ? ' (admin override)' : ''}`,
-        reportCount: post.report_count,
-        forced: force
+        monthlyReportCount: monthlyReportCount,
+        totalReportCount: allTimeReportCount,
+        forced: force,
+        userWarned: force && monthlyReportCount < MIN_REPORTS_FOR_DELETION
       });
     } catch (error) {
       console.error('Delete post error:', error);
@@ -291,7 +404,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Restored',
           message: `Your post "${post.title}" has been restored and is now publicly visible`,
-          type: 'post_restored', // User notification type
+          type: 'post_restored',
           metadata: JSON.stringify({
             post_id: id,
             action: 'restored',
@@ -312,12 +425,12 @@ const adminController = {
         );
       }
 
-      // 🎯 FIXED: Create admin notification with correct type for admin notifications
+      // Create admin notification
       const adminNotificationData = {
-        user_id: req.user.id, // This goes to admin's notification panel
+        user_id: req.user.id,
         title: 'Post Restored',
         message: `You restored post "${post.title}" by ${post.first_name} ${post.last_name}`,
-        type: 'post_restored', // 🎯 CHANGED FROM 'general' to 'post_restored'
+        type: 'post_restored',
         metadata: JSON.stringify({
           post_id: id,
           action: 'restored',
@@ -375,7 +488,7 @@ const adminController = {
           user_id: post.user_id,
           title: 'Post Resolved',
           message: `Your post "${post.title}" has been marked as resolved${reason ? `. Reason: ${reason}` : ''}`,
-          type: 'post_resolved', // User notification type
+          type: 'post_resolved',
           metadata: JSON.stringify({
             post_id: id,
             action: 'resolved',
@@ -398,12 +511,12 @@ const adminController = {
         );
       }
 
-      // 🎯 FIXED: Create admin notification with correct type for admin notifications
+      // Create admin notification
       const adminNotificationData = {
-        user_id: req.user.id, // This goes to admin's notification panel
+        user_id: req.user.id,
         title: 'Post Resolved',
         message: `You marked post "${post.title}" by ${post.first_name} ${post.last_name} as resolved`,
-        type: 'post_resolved', // 🎯 CHANGED FROM 'general' to 'post_resolved'
+        type: 'post_resolved',
         metadata: JSON.stringify({
           post_id: id,
           action: 'resolved',

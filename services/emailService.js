@@ -1,4 +1,3 @@
-// services/emailService.js - UPDATED WITH FEEDBACK
 const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
 
@@ -22,7 +21,6 @@ const emailService = {
       };
 
       const result = await transporter.sendMail(mailOptions);
-     
       return true;
     } catch (error) {
       console.error('Error sending email:', error);
@@ -75,12 +73,12 @@ const emailService = {
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // NEW: REPORT SUBMITTED EMAIL
-  sendReportSubmittedEmail: async (userEmail, userName, postTitle, reason, additionalInfo = '', reportId) => {
+  // NEW: REPORT SUBMITTED EMAIL WITH MONTHLY COUNTS
+  sendReportSubmittedEmail: async (userEmail, userName, postTitle, reason, additionalInfo = '', reportId, monthlyReportCount = 0, totalReportCount = 0) => {
     const subject = 'Report Submitted Successfully - Community Platform';
-    const message = `Hello ${userName},\n\nYour report has been submitted successfully and is now under review by our admin team.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Report ID: #${reportId}\n- Status: Under Review\n\nWe will review your report and take appropriate action. You will be notified of any updates.\n\nThank you for helping us maintain a safe community.\n\nBest regards,\nThe Community Platform Team`;
+    const message = `Hello ${userName},\n\nYour report has been submitted successfully and is now under review by our admin team.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Report ID: #${reportId}\n- Monthly Reports: ${monthlyReportCount}\n- Total Reports: ${totalReportCount}\n- Status: Under Review\n\nWe will review your report and take appropriate action. You will be notified of any updates.\n\nThank you for helping us maintain a safe community.\n\nBest regards,\nThe Community Platform Team`;
     
-    const htmlContent = emailTemplates.reportSubmitted(userName, postTitle, reason, additionalInfo, reportId);
+    const htmlContent = emailTemplates.reportSubmitted(userName, postTitle, reason, additionalInfo, reportId, monthlyReportCount, totalReportCount);
 
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
@@ -102,12 +100,12 @@ const emailService = {
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // NEW: ADMIN REPORT NOTIFICATION
-  sendAdminReportNotification: async (adminEmail, adminName, postTitle, reason, additionalInfo = '', reportId, reporterName) => {
+  // NEW: ADMIN REPORT NOTIFICATION WITH MONTHLY COUNTS
+  sendAdminReportNotification: async (adminEmail, adminName, postTitle, reason, additionalInfo = '', reportId, reporterName, monthlyReportCount = 0, totalReportCount = 0) => {
     const subject = 'New Report Submitted - Action Required';
-    const message = `Hello ${adminName},\n\nA new report has been submitted for the post "${postTitle}".\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Reporter: ${reporterName}\n- Report ID: #${reportId}\n\nPlease review this report in the admin panel.\n\nBest regards,\nThe Community Platform`;
+    const message = `Hello ${adminName},\n\nA new report has been submitted for the post "${postTitle}".\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Reporter: ${reporterName}\n- Report ID: #${reportId}\n- Monthly Reports: ${monthlyReportCount}\n- Total Reports: ${totalReportCount}\n\nPlease review this report in the admin panel.\n\nBest regards,\nThe Community Platform`;
     
-    const htmlContent = emailTemplates.adminReportNotification(adminName, postTitle, reason, additionalInfo, reportId, reporterName);
+    const htmlContent = emailTemplates.adminReportNotification(adminName, postTitle, reason, additionalInfo, reportId, reporterName, monthlyReportCount, totalReportCount);
 
     return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
   },
@@ -128,6 +126,26 @@ const emailService = {
     const message = `Hello ${userName},\n\nYour feedback "${title}" has been updated to: ${status}\n${adminNotes ? `\nAdmin Notes: ${adminNotes}\n` : ''}\nThank you for your contribution to improving our platform!\n\nBest regards,\nThe Community Platform Team`;
     
     const htmlContent = emailTemplates.feedbackStatusUpdate(userName, title, status, adminNotes);
+
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
+
+  // 🆕 POST ACTION WARNING EMAIL
+  sendPostActionWarning: async (userEmail, userName, action, postTitle, reason, currentReports, requiredReports, isSerious = false) => {
+    const actions = {
+      removed: 'removed from public view',
+      deleted: 'permanently deleted'
+    };
+
+    const subject = isSerious 
+      ? `URGENT: Post ${actions[action]} - Policy Violation Warning` 
+      : `Post ${actions[action]} - Community Guidelines Warning`;
+
+    const message = isSerious
+      ? `Hello ${userName},\n\nIMPORTANT: Your post "${postTitle}" has been ${actions[action]} by the administrator due to a serious policy violation.\n\nDetails:\n- Current Monthly Reports: ${currentReports}/${requiredReports} (Below threshold)\n- Action: ${actions[action]}\n${reason ? `- Reason: ${reason}\n` : ''}\nThis is a serious violation of our community guidelines. Repeated violations may result in account suspension.\n\nPlease review our community guidelines carefully.\n\nBest regards,\nThe Admin Team`
+      : `Hello ${userName},\n\nYour post "${postTitle}" has been ${actions[action]} by the administrator.\n\nNote: This action was taken despite having only ${currentReports} report(s) this month, which is below our normal threshold of ${requiredReports} monthly reports.\n${reason ? `- Reason: ${reason}\n` : ''}\nPlease review our community guidelines to ensure your posts comply with our standards.\n\nBest regards,\nThe Admin Team`;
+    
+    const htmlContent = emailTemplates.postActionWarning(userName, postTitle, action, reason, currentReports, requiredReports, isSerious);
 
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   }
