@@ -349,7 +349,49 @@ const reportController = {
         error: 'Server error fetching user reports'
       });
     }
+  },
+  // Add this method to reportController
+deleteUserReport: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    // Check if report exists and belongs to user
+    const report = await db('reports')
+      .where('id', id)
+      .where('reporter_id', userId)
+      .first();
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found or you do not have permission to delete it'
+      });
+    }
+
+    // Check if report can be deleted (only pending or under_review)
+    if (!['pending', 'under_review','resolved'].includes(report.status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only pending or under review reports can be deleted'
+      });
+    }
+
+    // Delete the report
+    await db('reports').where('id', id).delete();
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete report error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error deleting report'
+    });
   }
+} 
 };
 
-module.exports = reportController;
+module.exports = reportController; 
