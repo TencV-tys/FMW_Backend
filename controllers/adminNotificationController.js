@@ -1,21 +1,19 @@
 const db = require('../config/db');
-const Notification = require('../models/Notification');
 
 const adminNotificationController = {
-  // Get only admin-related notifications - STRICTLY FIXED
+  // Get all admin-related notifications - FIXED
   getAllNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
-        .join('users', 'notifications.user_id', 'users.id')
+        .leftJoin('users', 'notifications.user_id', 'users.id')
         .where(function() {
-          // ONLY show notifications where the USER is an admin OR it's the current admin's personal notifications
-          this.where('users.role', 'admin') // User must be an admin
-            .orWhere('notifications.user_id', req.user.id); // Or it's the current admin's personal notification
+          // Show notifications for current admin OR from admin users
+          this.where('notifications.user_id', req.user.id)
+            .orWhere('users.role', 'admin');
         })
         .andWhere(function() {
-          // AND only show admin system notification types
+          // Only show specific admin notification types (REMOVED 'general')
           this.where('notifications.type', 'in', [
-            'general',
             'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
             'report_submitted',
             'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
@@ -47,19 +45,18 @@ const adminNotificationController = {
     }
   },
 
-  // 🎯 Get unread notifications only - STRICTLY FIXED
+  // Get unread notifications only - FIXED
   getUnreadNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
-        .join('users', 'notifications.user_id', 'users.id')
+        .leftJoin('users', 'notifications.user_id', 'users.id')
         .where('notifications.is_read', false)
         .andWhere(function() {
-          this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id);
+          this.where('notifications.user_id', req.user.id)
+            .orWhere('users.role', 'admin');
         })
         .andWhere(function() {
           this.where('notifications.type', 'in', [
-            'general',
             'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
             'report_submitted',
             'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
@@ -91,7 +88,7 @@ const adminNotificationController = {
     }
   },
 
-  // Get notifications by type - STRICTLY FIXED
+  // Get notifications by type - FIXED
   getNotificationsByType: async (req, res) => {
     try {
       const { type } = req.params;
@@ -101,23 +98,11 @@ const adminNotificationController = {
       }
       
       const notifications = await db('notifications')
-        .join('users', 'notifications.user_id', 'users.id')
+        .leftJoin('users', 'notifications.user_id', 'users.id')
         .where('notifications.type', type)
         .andWhere(function() {
-          this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id);
-        })
-        .andWhere(function() {
-          this.where('notifications.type', 'in', [
-            'general',
-            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
-            'report_submitted',
-            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
-            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
-            'post_resolved_by_user',
-            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
-            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
-          ]);
+          this.where('notifications.user_id', req.user.id)
+            .orWhere('users.role', 'admin');
         })
         .select(
           'notifications.*',
@@ -141,35 +126,32 @@ const adminNotificationController = {
     }
   },
 
-  // Get notification statistics for admin - STRICTLY FIXED
+  // Get notification statistics for admin - FIXED
   getNotificationStats: async (req, res) => {
     try {
       const stats = await db('notifications')
-        .join('users', 'notifications.user_id', 'users.id')
+        .leftJoin('users', 'notifications.user_id', 'users.id')
         .where(function() {
-          this.where('users.role', 'admin')
-            .orWhere('notifications.user_id', req.user.id);
+          this.where('notifications.user_id', req.user.id)
+            .orWhere('users.role', 'admin');
         })
-        .andWhere(function() {
-          this.where('notifications.type', 'in', [
-            'general',
-            'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
-            'report_submitted',
-            'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
-            'feedback_submitted', 'feedback_updated', 'feedback_deleted',
-            'post_resolved_by_user',
-            'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
-            'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
-          ]);
-        })
+        .andWhere('notifications.type', 'in', [
+          'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+          'report_submitted',
+          'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+          'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+          'post_resolved_by_user',
+          'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+          'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
+        ])
         .select(
           db.raw('COUNT(*) as total'),
           db.raw('SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread'),
-          db.raw('SUM(CASE WHEN type = "post_resolved" THEN 1 ELSE 0 END) as resolved'),
-          db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as removed'),
-          db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as deleted'),
+          db.raw('SUM(CASE WHEN type = "post_resolved" THEN 1 ELSE 0 END) as post_resolved'),
+          db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as post_removed'),
+          db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as post_deleted'),
+          db.raw('SUM(CASE WHEN type = "post_restored" THEN 1 ELSE 0 END) as post_restored'),
           db.raw('SUM(CASE WHEN type = "report_submitted" THEN 1 ELSE 0 END) as reports'),
-          db.raw('SUM(CASE WHEN type = "general" THEN 1 ELSE 0 END) as admin_actions'),
           db.raw('SUM(CASE WHEN type = "user_suspended" THEN 1 ELSE 0 END) as user_suspended'),
           db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
           db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
@@ -177,7 +159,7 @@ const adminNotificationController = {
           db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
           db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
           db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted'),
-          db.raw('SUM(CASE WHEN type = "post_resolved_by_user" THEN 1 ELSE 0 END) as user_resolved_posts'),
+          db.raw('SUM(CASE WHEN type = "post_resolved_by_user" THEN 1 ELSE 0 END) as post_resolved_by_user'),
           db.raw('SUM(CASE WHEN type = "deletion_request" THEN 1 ELSE 0 END) as deletion_request'),
           db.raw('SUM(CASE WHEN type = "deletion_request_submitted" THEN 1 ELSE 0 END) as deletion_request_submitted'),
           db.raw('SUM(CASE WHEN type = "deletion_request_approved" THEN 1 ELSE 0 END) as deletion_request_approved'),
@@ -200,7 +182,7 @@ const adminNotificationController = {
           feedback_submitted: parseInt(stats.feedback_submitted) || 0,
           feedback_updated: parseInt(stats.feedback_updated) || 0,
           feedback_deleted: parseInt(stats.feedback_deleted) || 0,
-          user_resolved_posts: parseInt(stats.user_resolved_posts) || 0,
+          post_resolved_by_user: parseInt(stats.post_resolved_by_user) || 0,
           deletion_request: parseInt(stats.deletion_request) || 0,
           deletion_request_submitted: parseInt(stats.deletion_request_submitted) || 0,
           deletion_request_approved: parseInt(stats.deletion_request_approved) || 0,
@@ -218,7 +200,7 @@ const adminNotificationController = {
     }
   },
 
-  // Delete notification - STRICTLY FIXED
+  // Delete notification - KEEP SAME
   deleteNotification: async (req, res) => {
     try {
       const { id } = req.params;
@@ -256,7 +238,7 @@ const adminNotificationController = {
     }
   },
 
-  // Clear only admin's notifications - STRICTLY FIXED
+  // Clear only admin's notifications - KEEP SAME
   clearAllNotifications: async (req, res) => {
     try {
       await db('notifications')
@@ -284,7 +266,7 @@ const adminNotificationController = {
     }
   },
 
-  // Mark notification as read - STRICTLY FIXED
+  // Mark notification as read - KEEP SAME
   markAsRead: async (req, res) => {
     try {
       const { id } = req.params;
@@ -325,7 +307,7 @@ const adminNotificationController = {
     }
   },
 
-  // Mark all notifications as read - STRICTLY FIXED
+  // Mark all notifications as read - KEEP SAME
   markAllAsRead: async (req, res) => {
     try {
       await db('notifications')
