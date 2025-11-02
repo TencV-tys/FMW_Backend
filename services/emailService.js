@@ -9,6 +9,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+
+
 const emailService = {
   sendNotification: async (to, subject, message, htmlContent = null) => {
     try {
@@ -63,15 +65,21 @@ const emailService = {
   },
 
   // PASSWORD RESET EMAIL
-  sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
-    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
-    const subject = 'Password Reset Request - Community Platform';
-    const message = `Hello ${userName},\n\nYou requested to reset your password. Use this link to reset your password: ${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nThe Admin Team`;
-    
-    const htmlContent = emailTemplates.passwordReset(userName, resetLink, '1 hour');
+ sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
+  // Use custom URL if provided, otherwise use environment variable, otherwise default
+const baseUrl = 'http://192.168.1.27:5173';
+  
+  // ✅ URL encode the token to handle special characters
+  const encodedToken = encodeURIComponent(resetToken);
+  const resetLink = `${baseUrl}/reset-password?token=${encodedToken}`;
+  
+  const subject = 'Password Reset Request - Community Platform';
+  const message = `Hello ${userName},\n\nYou requested to reset your password. Use this link to reset your password: ${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nThe Admin Team`;
+  
+  const htmlContent = emailTemplates.passwordReset(userName, resetLink, '1 hour');
 
-    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
-  },
+  return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+},
 
   // NEW: REPORT SUBMITTED EMAIL WITH MONTHLY COUNTS
   sendReportSubmittedEmail: async (userEmail, userName, postTitle, reason, additionalInfo = '', reportId, monthlyReportCount = 0, totalReportCount = 0) => {

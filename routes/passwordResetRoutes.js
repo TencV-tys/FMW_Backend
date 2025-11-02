@@ -12,4 +12,4 @@ router.post('/verify-reset-token', passwordResetController.verifyResetToken);
 // POST /api/auth/reset-password - Reset password with token
 router.post('/reset-password', passwordResetController.resetPassword);
 
-module.exports = router;
+module.exports = router; 

@@ -8,97 +8,65 @@ const { findUserByEmail } = require('../models/User');
 const passwordResetController = {
   // Request password reset
   requestReset: async (req, res) => {
-    try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          error: 'Email is required'
-        });
-      }
-
-      // Check if user exists
-      const user = await findUserByEmail(email);
-      
-      // For security, always return success even if email doesn't exist
-      if (!user) {
-        console.log(`Password reset requested for non-existent email: ${email}`);
-        return res.json({
-          success: true,
-          message: 'If the email exists, a password reset link has been sent to your email.'
-        });
-      }
-
-      // Check if user is active
-      if (user.status !== 'active') {
-        return res.status(403).json({
-          success: false,
-          error: 'Cannot reset password for a suspended or banned account'
-        });
-      }
-
-      // Generate reset token (expires in 1 hour)
-      const resetToken = jwt.sign(
-        { 
-          id: user.id, 
-          email: user.email,
-          type: 'password_reset'
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '1h' }
-      );
-
-      // Store reset token in database
-      const resetData = {
-        email: user.email,
-        token: resetToken,
-        expires_at: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-        created_at: new Date()
-      };
-
-      // Insert or update existing reset token
-      await db('password_resets')
-        .insert(resetData)
-        .onConflict('email')
-        .merge(['token', 'expires_at', 'created_at']);
-
-      // Send reset email
-      const emailSent = await emailService.sendPasswordResetEmail(
-        user.email,
-        `${user.first_name} ${user.last_name}`,
-        resetToken
-      );
-
-      if (!emailSent) {
-        return res.status(500).json({
-          success: false,
-          error: 'Failed to send reset email. Please try again later.'
-        });
-      }
-
-      console.log(`Password reset email sent to: ${user.email}`);
-
-      res.json({
-        success: true,
-        message: 'If the email exists, a password reset link has been sent to your email.'
-      });
-
-    } catch (error) {
-      console.error('Password reset request error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error processing reset request'
-      });
+  try {
+    const { email } = req.body;
+    const user = await findUserByEmail(email);
+    
+    if (!user) {
+      return res.json({ success: true });
     }
-  },
+
+    // Generate reset token
+    const resetToken = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email,
+        type: 'password_reset'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // ✅ DELETE old tokens instead of updating them
+    await db('password_resets')
+      .where('email', user.email)
+      .del();
+
+    // ✅ INSERT new token (always unused)
+    const resetData = {
+      email: user.email,
+      token: resetToken,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000),
+      used: false, // ✅ Always set to false for new tokens
+      created_at: new Date()
+    };
+
+    await db('password_resets').insert(resetData);
+
+    console.log('✅ New reset token generated for:', user.email);
+
+    // Send email...
+    await emailService.sendPasswordResetEmail(user.email, user.first_name, resetToken);
+
+    res.json({ success: true, message: 'Reset email sent' });
+
+  } catch (error) {
+    console.error('Password reset request error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+},
 
   // Verify reset token
   verifyResetToken: async (req, res) => {
     try {
       const { token } = req.body;
+          
+
+  
+
 
       if (!token) {
+         console.log('❌ No token provided');
         return res.status(400).json({
           success: false,
           error: 'Reset token is required'
@@ -109,7 +77,9 @@ const passwordResetController = {
       let decoded;
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
       } catch (jwtError) {
+        console.log('❌ JWT verification failed:', jwtError.message);
         return res.status(400).json({
           success: false,
           error: 'Invalid or expired reset token'
@@ -230,8 +200,6 @@ const passwordResetController = {
           used: true,
           used_at: new Date()
         });
-
-      console.log(`Password reset successful for: ${decoded.email}`);
 
       res.json({
         success: true,
