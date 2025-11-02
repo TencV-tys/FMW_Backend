@@ -148,7 +148,65 @@ const emailService = {
     const htmlContent = emailTemplates.postActionWarning(userName, postTitle, action, reason, currentReports, requiredReports, isSerious);
 
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
-  }
+  },
+  // Add to your emailService.js
+sendContactFormNotification: async (adminEmail, formData) => {
+  const { name, email, subject, message, category } = formData;
+  
+  const mailOptions = {
+    from: `"Contact Form" <${process.env.EMAIL_USER}>`,
+    to: adminEmail,
+    subject: `New Contact Form: ${subject}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #FF8904;">New Contact Form Submission</h2>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
+          <h3 style="color: #333; margin-top: 0;">Contact Details</h3>
+          
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold; width: 120px;">Name:</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">Email:</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">
+                <a href="mailto:${email}" style="color: #FF8904;">${email}</a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">Category:</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; text-transform: capitalize;">${category}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd; font-weight: bold;">Subject:</td>
+              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${subject}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <h3 style="color: #333;">Message</h3>
+          <div style="background: white; border: 1px solid #e5e5e5; padding: 15px; border-radius: 6px;">
+            <p style="margin: 0; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+          </div>
+        </div>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
+          <p style="color: #666; font-size: 14px;">
+            This message was sent from the contact form on your website.
+          </p>
+        </div>
+      </div>
+    `
+  };
+
+  return await emailService.sendNotification(adminEmail, mailOptions.subject, 
+    `New contact form submission from ${name} (${email}). Subject: ${subject}. Message: ${message}`, 
+    mailOptions.html
+  );
+}
 };
 
 module.exports = emailService;

@@ -345,7 +345,7 @@ const emailTemplates = {
               This action was taken due to a serious violation of our community guidelines. 
               Repeated violations may result in account suspension or permanent banning.
             </p>
-          </div>
+          </div> 
         ` : `
           <div style="background-color: #fffbeb; border: 2px solid #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0;">
             <h3 style="color: #d97706; margin: 0 0 10px 0;">ℹ️ Notice</h3>
