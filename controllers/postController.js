@@ -520,7 +520,7 @@ const postController = {
       const currentTime = new Date();
       const user = await db('users').where('id', userId).select('first_name', 'last_name').first();
       
-      if (!user) return;
+      if (!user) return; 
 
       let notificationData;
 
