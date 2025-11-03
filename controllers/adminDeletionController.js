@@ -5,7 +5,6 @@ const adminDeletionController = {
   // Get all deletion requests
   getDeletionRequests: async (req, res) => {
     try {
-      
       const deletionRequests = await db('deletion_requests')
         .join('users', 'deletion_requests.user_id', 'users.id')
         .leftJoin('posts', 'deletion_requests.post_id', 'posts.id')
@@ -21,7 +20,6 @@ const adminDeletionController = {
         )
         .orderBy('deletion_requests.created_at', 'desc');
 
-     
       res.json({
         success: true,
         requests: deletionRequests
@@ -36,85 +34,80 @@ const adminDeletionController = {
   },
 
   // Get all users with their deletion stats AND pending requests
-  
-getUsersDeletionStats: async (req, res) => {
-  try {
-   
-    
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
+  getUsersDeletionStats: async (req, res) => {
+    try {
+      const currentMonth = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
 
-    // Get all users with their deletion counts
-    const users = await db('users')
-      .leftJoin('user_post_deletions', function() {
-        this.on('users.id', '=', 'user_post_deletions.user_id')
-          .andOn('user_post_deletions.month', '=', currentMonth)
-          .andOn('user_post_deletions.year', '=', currentYear);
-      })
-      .select(
-        'users.id',
-        'users.first_name',
-        'users.last_name',
-        'users.email',
-        'users.role',
-        'users.status',
-        'user_post_deletions.deletion_count',
-        'user_post_deletions.month',
-        'user_post_deletions.year'
-      )
-      .where('users.role', 'user')
-      .orderBy('user_post_deletions.deletion_count', 'desc');
+      // Get all users with their deletion counts
+      const users = await db('users')
+        .leftJoin('user_post_deletions', function() {
+          this.on('users.id', '=', 'user_post_deletions.user_id')
+            .andOn('user_post_deletions.month', '=', currentMonth)
+            .andOn('user_post_deletions.year', '=', currentYear);
+        })
+        .select(
+          'users.id',
+          'users.first_name',
+          'users.last_name',
+          'users.email',
+          'users.role',
+          'users.status',
+          'user_post_deletions.deletion_count',
+          'user_post_deletions.month',
+          'user_post_deletions.year'
+        )
+        .where('users.role', 'user')
+        .orderBy('user_post_deletions.deletion_count', 'desc');
 
-    // Get pending deletion requests count for each user
-    const pendingRequests = await db('deletion_requests')
-      .where('status', 'pending')
-      .groupBy('user_id')
-      .select('user_id', db.raw('COUNT(*) as pending_requests_count'));
+      // Get pending deletion requests count for each user
+      const pendingRequests = await db('deletion_requests')
+        .where('status', 'pending')
+        .groupBy('user_id')
+        .select('user_id', db.raw('COUNT(*) as pending_requests_count'));
 
-    const pendingRequestsMap = {};
-    pendingRequests.forEach(req => {
-      pendingRequestsMap[req.user_id] = req.pending_requests_count;
-    });
+      const pendingRequestsMap = {};
+      pendingRequests.forEach(req => {
+        pendingRequestsMap[req.user_id] = req.pending_requests_count;
+      });
 
-    // 🎯 FIXED: Add limit reached flag, remaining deletions, and pending requests
-    const usersWithStats = users.map(user => {
-      const deletionCount = user.deletion_count || 0; // If no record, count is 0
-      const MONTHLY_LIMIT = 3;
-      
-      // 🎯 FIX: Only mark as limit reached if they've actually reached the limit
-      const limitReached = deletionCount >= MONTHLY_LIMIT;
-      const remainingDeletions = Math.max(0, MONTHLY_LIMIT - deletionCount);
-      const pendingRequestsCount = pendingRequestsMap[user.id] || 0;
+      const usersWithStats = users.map(user => {
+        const deletionCount = user.deletion_count || 0;
+        const MONTHLY_LIMIT = 3;
+        
+        const limitReached = deletionCount >= MONTHLY_LIMIT;
+        const remainingDeletions = Math.max(0, MONTHLY_LIMIT - deletionCount);
+        const pendingRequestsCount = pendingRequestsMap[user.id] || 0;
 
-      return {
-        ...user,
-        deletion_count: deletionCount,
-        limit_reached: limitReached, // 🎯 This should be false for users with 0-2 deletions
-        remaining_deletions: remainingDeletions,
-        pending_requests_count: pendingRequestsCount
-      };
-    });
+        return {
+          ...user,
+          deletion_count: deletionCount,
+          limit_reached: limitReached,
+          remaining_deletions: remainingDeletions,
+          pending_requests_count: pendingRequestsCount
+        };
+      });
 
-  
-    res.json({
-      success: true,
-      users: usersWithStats
-    });
-  } catch (error) {
-    console.error('Get users deletion stats error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error fetching users deletion stats: ' + error.message
-    });
-  }
-},
+      res.json({
+        success: true,
+        users: usersWithStats
+      });
+    } catch (error) {
+      console.error('Get users deletion stats error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Server error fetching users deletion stats: ' + error.message
+      });
+    }
+  },
+
   // Process deletion request (approve or reject) with email notifications
   processDeletionRequest: async (req, res) => {
     const transaction = await db.transaction();
     
     try {
       const { requestId } = req.params;
-      const { action, admin_notes } = req.body; // action: 'approve' or 'reject'
+      const { action, admin_notes } = req.body;
       const adminUser = req.user;
 
       console.log(`Processing deletion request ${requestId} with action: ${action}`);
@@ -152,7 +145,7 @@ getUsersDeletionStats: async (req, res) => {
             .delete();
         }
 
-        // INCREMENT user's deletion count by 1 instead of resetting to 0
+        // INCREMENT user's deletion count by 1
         const currentMonth = now.getMonth() + 1;
         const currentYear = now.getFullYear();
 
@@ -181,8 +174,7 @@ getUsersDeletionStats: async (req, res) => {
             updated_at: now
           });
         }
-
-   }
+      }
 
       // Update the deletion request
       await db('deletion_requests')
@@ -194,6 +186,29 @@ getUsersDeletionStats: async (req, res) => {
           processed_at: now,
           updated_at: now
         });
+
+      // 🆕 CREATE ADMIN NOTIFICATION FOR THE ACTION
+      const adminNotification = {
+        user_id: adminUser.id, // This goes to admin's notification list
+        title: `Deletion Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
+        message: `You ${action === 'approve' ? 'approved' : 'rejected'} deletion request from ${deletionRequest.first_name} ${deletionRequest.last_name}. ${admin_notes ? `Notes: ${admin_notes}` : ''}`,
+        type: `deletion_request_${action}ed`,
+        metadata: JSON.stringify({
+          request_id: requestId,
+          user_id: deletionRequest.user_id,
+          user_name: `${deletionRequest.first_name} ${deletionRequest.last_name}`,
+          user_email: deletionRequest.email,
+          action: action,
+          admin_notes: admin_notes,
+          processed_by: adminUser.id,
+          processed_by_name: `${adminUser.first_name} ${adminUser.last_name}`,
+          processed_at: now
+        }),
+        is_read: false,
+        created_at: now
+      };
+
+      await db('notifications').insert(adminNotification);
 
       // Create user notification
       const userNotification = {
@@ -359,7 +374,7 @@ getUsersDeletionStats: async (req, res) => {
         });
       }
 
-      // Create admin notification
+      // 🆕 CREATE ADMIN NOTIFICATION
       const adminNotification = {
         user_id: adminUser.id,
         title: 'Deletion Count Reset',
@@ -460,7 +475,6 @@ getUsersDeletionStats: async (req, res) => {
       const { additional_count = 1 } = req.body;
       const adminUser = req.user;
 
-    
       // Get current month and year
       const now = new Date();
       const currentMonth = now.getMonth() + 1;
@@ -489,14 +503,9 @@ getUsersDeletionStats: async (req, res) => {
 
       const currentCount = existingRecord ? existingRecord.deletion_count : 0;
       
-      // FIX: Ensure we don't go below 0, but also handle the case where user is over limit
       const newCount = Math.max(0, currentCount - additional_count);
-      
-      // If user was over limit (currentCount > 3), we want to bring them back to at most 2
-      // so they have at least 1 deletion remaining
       const effectiveNewCount = currentCount > 3 ? Math.min(2, newCount) : newCount;
 
-    
       // Update or create record
       if (existingRecord) {
         await db('user_post_deletions')
@@ -518,12 +527,12 @@ getUsersDeletionStats: async (req, res) => {
 
       const remainingDeletions = 3 - effectiveNewCount;
 
-      // Create admin notification
+      // 🆕 CREATE ADMIN NOTIFICATION
       const adminNotification = {
         user_id: adminUser.id,
         title: 'Additional Deletions Granted',
         message: `You granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name} (${user.email}). They now have ${remainingDeletions} deletion(s) remaining.`,
-        type: 'deletions_granted',
+        type: 'additional_deletions_granted',
         metadata: JSON.stringify({
           target_user_id: userId,
           target_user_name: `${user.first_name} ${user.last_name}`,
@@ -599,7 +608,6 @@ getUsersDeletionStats: async (req, res) => {
 
       await transaction.commit();
 
-     
       res.json({
         success: true,
         message: `Granted ${additional_count} additional deletion(s) to ${user.first_name} ${user.last_name}. They now have ${remainingDeletions} deletion(s) remaining.`,
