@@ -110,13 +110,13 @@ const feedbackController = {
   // Get all feedback (admin only)
   getAllFeedback: async (req, res) => {
     try {
-      const { status, type, priority, assigned_to } = req.query;
+      const { status, type, priority } = req.query;
       
       const filters = {};
       if (status) filters.status = status;
       if (type) filters.type = type;
       if (priority) filters.priority = priority;
-      if (assigned_to) filters.assigned_to = assigned_to;
+      // REMOVED: assigned_to filter
 
       const feedback = await Feedback.getAll(filters);
       
@@ -233,68 +233,7 @@ const feedbackController = {
     }
   },
 
-  // Assign feedback to admin (admin only)
-  assignFeedback: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { assigned_to } = req.body;
-
-      if (!assigned_to) {
-        return res.status(400).json({
-          success: false,
-          error: 'assigned_to field is required'
-        });
-      }
-
-      const feedback = await Feedback.getById(id);
-      if (!feedback) {
-        return res.status(404).json({
-          success: false,
-          error: 'Feedback not found'
-        });
-      }
-
-      // Check if assigned user exists and is admin
-      const assignedAdmin = await db('users')
-        .where('id', assigned_to)
-        .where('role', 'admin')
-        .first();
-
-      if (!assignedAdmin) {
-        return res.status(400).json({
-          success: false,
-          error: 'Assigned user must be an admin'
-        });
-      }
-
-      const updated = await Feedback.assignToAdmin(id, assigned_to);
-
-      if (updated) {
-        await feedbackController._handleAssignmentNotifications(id, assigned_to, assignedAdmin, feedback, req.user);
-
-        res.json({
-          success: true,
-          message: `Feedback assigned to ${assignedAdmin.first_name} ${assignedAdmin.last_name}`,
-          feedback: {
-            id: parseInt(id),
-            assigned_to: parseInt(assigned_to),
-            assigned_admin: `${assignedAdmin.first_name} ${assignedAdmin.last_name}`
-          }
-        });
-      } else {
-        res.status(404).json({
-          success: false,
-          error: 'Feedback not found'
-        });
-      }
-    } catch (error) {
-      console.error('Assign feedback error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error assigning feedback'
-      });
-    }
-  },
+  // 🆕 REMOVED: Assign feedback to admin functionality
 
   // Delete feedback (admin only)
   deleteFeedback: async (req, res) => {
@@ -506,7 +445,7 @@ const feedbackController = {
     }
   },
 
-  // Handle notifications for status updates
+  // 🆕 UPDATED: Handle notifications for status updates - FIXED REJECT NOTIFICATION
   _handleStatusUpdateNotifications: async (feedbackId, status, adminNotes, feedback, adminUser) => {
     try {
       const currentTime = new Date();
@@ -533,7 +472,7 @@ const feedbackController = {
 
         await db('notifications').insert(userNotificationData);
 
-        // Send email to user about status update
+        // 🆕 FIXED: Send email to user about ALL status updates including reject
         if (feedback.submitter_email) {
           await emailService.sendFeedbackStatusUpdate(
             feedback.submitter_email,
@@ -571,7 +510,7 @@ const feedbackController = {
     }
   },
 
-  // Get appropriate messages for status updates
+  // 🆕 UPDATED: Get appropriate messages for status updates - FIXED REJECT MESSAGE
   _getStatusUpdateMessages: (status, feedback, adminNotes) => {
     switch (status) {
       case 'reviewed':
@@ -591,8 +530,8 @@ const feedbackController = {
         };
       case 'rejected':
         return {
-          title: 'Feedback Update',
-          message: `Your feedback "${feedback.title}" has been reviewed.${adminNotes ? ` Note: ${adminNotes}` : ''}`
+          title: 'Feedback Rejected',
+          message: `Your feedback "${feedback.title}" has been reviewed but cannot be implemented at this time.${adminNotes ? ` Note: ${adminNotes}` : ''}`
         };
       case 'pending':
         return {
@@ -607,51 +546,7 @@ const feedbackController = {
     }
   },
 
-  // Handle notifications for assignment
-  _handleAssignmentNotifications: async (feedbackId, assignedTo, assignedAdmin, feedback, adminUser) => {
-    try {
-      const currentTime = new Date();
-
-      // Create notification for assigned admin
-      const assignmentNotification = {
-        user_id: assignedTo,
-        title: 'Feedback Assigned',
-        message: `You have been assigned to handle feedback: "${feedback.title}"`,
-        type: 'feedback_assigned',
-        metadata: JSON.stringify({
-          feedback_id: feedbackId,
-          title: feedback.title,
-          type: feedback.type,
-          priority: feedback.priority,
-          assigned_by: `${adminUser.first_name} ${adminUser.last_name}`
-        }),
-        is_read: false,
-        created_at: currentTime
-      };
-
-      await db('notifications').insert(assignmentNotification);
-
-      // Create admin notification for audit
-      const adminNotification = {
-        user_id: adminUser.id,
-        title: 'Feedback Assigned',
-        message: `You assigned feedback "${feedback.title}" to ${assignedAdmin.first_name} ${assignedAdmin.last_name}`,
-        type: 'feedback_assigned',
-        metadata: JSON.stringify({
-          feedback_id: feedbackId,
-          title: feedback.title,
-          assigned_to: assignedTo,
-          assigned_to_name: `${assignedAdmin.first_name} ${assignedAdmin.last_name}`
-        }),
-        is_read: false,
-        created_at: currentTime
-      };
-
-      await db('notifications').insert(adminNotification);
-    } catch (error) {
-      console.error('Error handling assignment notifications:', error);
-    }
-  },
+  // 🆕 REMOVED: _handleAssignmentNotifications function
 
   // Handle deletion notification
   _handleDeletionNotification: async (feedbackId, feedback, adminUser) => {
@@ -683,4 +578,4 @@ const feedbackController = {
   }
 };
 
-module.exports = feedbackController;
+module.exports = feedbackController; 

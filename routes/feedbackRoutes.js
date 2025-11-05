@@ -14,7 +14,6 @@ router.get('/feedback/stats', authMiddleware, adminMiddleware, feedbackControlle
 router.get('/feedback/status/:status', authMiddleware, adminMiddleware, feedbackController.getFeedbackByStatus);
 router.get('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.getFeedbackById);
 router.put('/feedback/:id/status', authMiddleware, adminMiddleware, feedbackController.updateFeedbackStatus);
-router.put('/feedback/:id/assign', authMiddleware, adminMiddleware, feedbackController.assignFeedback);
 router.delete('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback);
 
 module.exports = router;
