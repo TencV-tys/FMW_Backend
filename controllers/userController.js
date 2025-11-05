@@ -28,6 +28,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// 🆕 UPDATED: DELETE USER WITH ADMIN PROTECTION
 const deleted = async (req, res) => {
   try {
     const id = req.params.id;
@@ -35,7 +36,7 @@ const deleted = async (req, res) => {
     // Get user details before deletion for email notification
     const user = await db('users')
       .where('id', id)
-      .select('id', 'first_name', 'last_name', 'email')
+      .select('id', 'first_name', 'last_name', 'email', 'role')
       .first();
 
     if (!user) {
@@ -45,10 +46,19 @@ const deleted = async (req, res) => {
       });
     }
 
+    // 🆕 PREVENT DELETING ADMIN USERS
+    if (user.role === 'admin') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete admin users'
+      });
+    }
+
     const adminUser = req.user;
 
-    // 🎯 ADD: Remove from banned_emails if user is deleted
-    await db('banned_emails').where('email', user.email).delete();
+    // 🎯 KEEP BANNED EMAILS - DON'T DELETE THEM! (Prevent new account creation)
+    // We intentionally DON'T remove from banned_emails when user is deleted
+    // This prevents banned users from creating new accounts with the same email
 
     await deleteUser(id);
 
@@ -88,7 +98,7 @@ const deleted = async (req, res) => {
       message: 'Error deleting user'
     });
   }
-}
+};
 
 // Get users statistics
 const getUsersStats = async (req, res) => {
@@ -122,7 +132,7 @@ const getUsersStats = async (req, res) => {
   }
 };
 
-// Enhanced: Update user status with notifications and email
+// 🆕 UPDATED: Update user status with ADMIN PROTECTION (removed user notifications)
 const updateUserStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -138,13 +148,21 @@ const updateUserStatus = async (req, res) => {
     // Get user details for notification
     const user = await db('users')
       .where('id', id)
-      .select('id', 'email', 'first_name', 'last_name', 'status')
+      .select('id', 'email', 'first_name', 'last_name', 'status', 'role')
       .first();
 
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found'
+      });
+    }
+
+    // 🆕 PREVENT ACTION ON ADMIN USERS
+    if (user.role === 'admin' && (status === 'suspended' || status === 'banned')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot suspend or ban admin users'
       });
     }
 
@@ -195,7 +213,7 @@ const updateUserStatus = async (req, res) => {
       updateData.suspended_until = null;
       updateData.suspension_days = null;
       
-      // 🎯 REMOVE FROM BANNED_EMAILS TABLE IF BANNED
+      // 🎯 REMOVE FROM BANNED_EMAILS TABLE ONLY WHEN ACTIVATING (not when deleting)
       await db('banned_emails').where('email', user.email).delete();
     }
 
@@ -264,7 +282,7 @@ const updateUserStatus = async (req, res) => {
         await db('notifications').insert(adminNotificationData);
       }
 
-      // Send email notification to user about status change
+      // 🎯 ONLY SEND EMAIL (NO USER NOTIFICATION) - User will see email only
       await emailService.sendUserStatusNotification(
         user.email,
         `${user.first_name} ${user.last_name}`,
@@ -272,45 +290,6 @@ const updateUserStatus = async (req, res) => {
         reason,
         suspensionDays
       );
-
-      // Send in-app notification to user
-      let userNotificationTitle, userNotificationMessage;
-
-      switch (status) {
-        case 'suspended':
-          userNotificationTitle = 'Account Suspended';
-          const suspendedUntil = updateData.suspended_until;
-          userNotificationMessage = `Your account has been suspended for ${suspensionDays} day(s). ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'} Your account will be automatically reactivated on ${suspendedUntil.toLocaleDateString()}.`;
-          break;
-        case 'banned':
-          userNotificationTitle = 'Account Banned';
-          userNotificationMessage = `Your account has been banned. ${reason ? `Reason: ${reason}` : 'Please contact administrator for details.'} You cannot create new accounts with this email address.`;
-          break;
-        case 'active':
-          userNotificationTitle = 'Account Reactivated';
-          userNotificationMessage = 'Your account has been reactivated and you can now access all features.';
-          break;
-      }
-
-      if (userNotificationTitle) {
-        const userNotificationData = {
-          user_id: user.id,
-          title: userNotificationTitle,
-          message: userNotificationMessage,
-          type: 'account_status_change',
-          metadata: JSON.stringify({
-            previous_status: user.status,
-            new_status: status,
-            reason: reason,
-            duration: suspensionDays,
-            suspended_until: updateData.suspended_until
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-
-        await db('notifications').insert(userNotificationData);
-      }
 
       res.json({
         success: true,
@@ -490,18 +469,6 @@ const checkSuspendedUsers = async () => {
         'activated'
       );
 
-      // Notify user about auto-restoration
-      const notificationData = {
-        user_id: user.id,
-        title: 'Account Restored',
-        message: 'Your account suspension has been automatically lifted.',
-        type: 'account_status_change',
-        is_read: false,
-        created_at: new Date()
-      };
-
-      await db('notifications').insert(notificationData);
-
       console.log(`Auto-restored user: ${user.email}`);
     }
   } catch (error) {
@@ -509,8 +476,7 @@ const checkSuspendedUsers = async () => {
   }
 };
 
-  // Add this function to your userController.js file:
-
+// Get users with report statistics
 const getUsersWithReportStats = async (req, res) => {
   try {
     const users = await db('users')
@@ -576,7 +542,8 @@ const getUsersWithReportStats = async (req, res) => {
     });
   }
 };
-// Send automatic warning to user
+
+// 🆕 SEND AUTOMATIC WARNING TO USER (Email + Notification)
 const sendUserWarning = async (req, res) => {
   try {
     const { userId, monthlyReports, totalReports } = req.body;
@@ -601,6 +568,23 @@ const sendUserWarning = async (req, res) => {
       totalReports
     );
 
+    // 🆕 CREATE IN-APP NOTIFICATION FOR USER
+    const notificationData = {
+      user_id: user.id,
+      title: '⚠️ Community Guidelines Warning',
+      message: `Your account has received ${monthlyReports} reports this month. Please review our community guidelines.`,
+      type: 'user_warning',
+      metadata: JSON.stringify({
+        monthly_reports: monthlyReports,
+        total_reports: totalReports,
+        warning_date: new Date().toISOString()
+      }),
+      is_read: false,
+      created_at: new Date()
+    };
+
+    await db('notifications').insert(notificationData);
+
     res.json({
       success: true,
       message: 'Warning sent to user successfully'
@@ -614,16 +598,15 @@ const sendUserWarning = async (req, res) => {
   }
 };
 
-
 module.exports = {
-  getAllUsers,
+  getAllUsers, 
   deleted,
   getUsersStats,
   updateUserStatus,
   updateProfile,
-  getProfile,
-  getUserPostStats,
+  getProfile, 
+  getUserPostStats, 
   checkSuspendedUsers,
-    getUsersWithReportStats,
-    sendUserWarning,
+  getUsersWithReportStats,
+  sendUserWarning,
 };

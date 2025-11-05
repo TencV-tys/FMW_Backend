@@ -57,351 +57,224 @@ const adminController = {
       res.status(500).json({ success: false, error: 'Server error fetching posts' });
     }
   },
+// Remove post - WITH WARNING NOTIFICATION
+removePost: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
 
-  // Remove post from public view - WITH MONTHLY REPORT VALIDATION
-  removePost: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { reason, force = false } = req.body || {};
+    // Get post with user info
+    const post = await db('posts')
+      .where('posts.id', id)
+      .join('users', 'posts.user_id', 'users.id')
+      .select('posts.*', 'users.first_name', 'users.last_name', 'users.email')
+      .first();
 
-      // Get post with user info
-      const post = await db('posts')
-        .where('posts.id', id)
-        .join('users', 'posts.user_id', 'users.id')
-        .select(
-          'posts.*',
-          'users.first_name',
-          'users.last_name',
-          'users.email'
-        )
-        .first();
-
-      if (!post) {
-        return res.status(404).json({ success: false, error: 'Post not found' });
-      }
-
-      // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT
-      const currentDate = new Date();
-      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
-      
-      const reportCountResult = await db('reports')
-        .where('post_id', id)
-        .where('reported_month', currentMonth)
-        .count('id as report_count')
-        .first();
-
-      const monthlyReportCount = reportCountResult ? parseInt(reportCountResult.report_count) : 0;
-
-      // 🆕 GET ALL-TIME REPORT COUNT
-      const allTimeReportResult = await db('reports')
-        .where('post_id', id)
-        .count('id as report_count')
-        .first();
-
-      const allTimeReportCount = allTimeReportResult ? parseInt(allTimeReportResult.report_count) : 0;
-
-      // 🎯 Report-based validation with MONTHLY counts
-      const MIN_REPORTS_FOR_REMOVAL = 3;
-      const hasEnoughReports = monthlyReportCount >= MIN_REPORTS_FOR_REMOVAL;
-      
-      if (!hasEnoughReports && !force) {
-        return res.status(400).json({
-          success: false,
-          error: `Post needs at least ${MIN_REPORTS_FOR_REMOVAL} unique user reports this month to be removed. Currently has ${monthlyReportCount} unique monthly reports.`,
-          monthlyReportCount: monthlyReportCount,
-          totalReportCount: allTimeReportCount,
-          requiredCount: MIN_REPORTS_FOR_REMOVAL,
-          canForce: true
-        });
-      }
-
-      await db('posts')
-        .where('id', id)
-        .update({ 
-          status: 'Removed',
-          reason: reason || (force ? 'Post removed by administrator (forced)' : 'Post removed by administrator'),
-          updated_at: new Date()
-        });
-
-      const currentTime = new Date();
-      const notificationsToInsert = [];
-
-      // 🆕 USER WARNING SYSTEM: Check if this is a forced action with low reports
-      if (force && monthlyReportCount < MIN_REPORTS_FOR_REMOVAL) {
-        // Create warning notification for user
-        const warningNotification = {
-          user_id: post.user_id,
-          title: 'Post Removed - Warning',
-          message: `Your post "${post.title}" was removed by administrator despite having only ${monthlyReportCount} report(s) this month. Please review community guidelines.${reason ? ` Reason: ${reason}` : ''}`,
-          type: 'post_removed_warning',
-          metadata: JSON.stringify({
-            post_id: id,
-            action: 'removed_forced',
-            admin_id: req.user.id,
-            reason: reason || 'Post removed by administrator (forced)',
-            post_title: post.title,
-            monthly_report_count: monthlyReportCount,
-            total_report_count: allTimeReportCount,
-            forced: true,
-            warning_type: 'low_reports_override'
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-        notificationsToInsert.push(warningNotification);
-
-        // Send warning email to user
-        await emailService.sendPostActionWarning(
-          post.email,
-          `${post.first_name} ${post.last_name}`,
-          'removed',
-          post.title,
-          reason,
-          monthlyReportCount,
-          MIN_REPORTS_FOR_REMOVAL
-        );
-      } else {
-        // Regular notification (not forced or has enough reports)
-        const userNotificationData = {
-          user_id: post.user_id,
-          title: 'Post Removed',
-          message: `Your post "${post.title}" has been removed from public view${reason ? `. Reason: ${reason}` : ''}`,
-          type: 'post_removed',
-          metadata: JSON.stringify({
-            post_id: id,
-            action: 'removed',
-            admin_id: req.user.id,
-            reason: reason || 'Post removed by administrator',
-            post_title: post.title,
-            monthly_report_count: monthlyReportCount,
-            total_report_count: allTimeReportCount,
-            forced: force
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-        notificationsToInsert.push(userNotificationData);
-
-        // Send regular email notification
-        await emailService.sendPostActionNotification(
-          post.email,
-          `${post.first_name} ${post.last_name}`,
-          'removed',
-          post.title,
-          reason
-        );
-      }
-
-      // Always create admin notification for audit trail
-      const adminNotificationData = {
-        user_id: req.user.id,
-        title: 'Post Removed',
-        message: `You removed post "${post.title}" by ${post.first_name} ${post.last_name} from public view${force ? ' (FORCED - Low monthly reports)' : ''}`,
-        type: 'post_removed',
-        metadata: JSON.stringify({
-          post_id: id,
-          action: 'removed',
-          target_user_id: post.user_id,
-          target_user_name: `${post.first_name} ${post.last_name}`,
-          reason: reason || 'Post removed by administrator',
-          post_title: post.title,
-          performed_by: req.user.id,
-          monthly_report_count: monthlyReportCount,
-          total_report_count: allTimeReportCount,
-          forced: force
-        }),
-        is_read: false,
-        created_at: currentTime
-      };
-      notificationsToInsert.push(adminNotificationData);
-
-      if (notificationsToInsert.length > 0) {
-        await db('notifications').insert(notificationsToInsert);
-      }
-
-      res.json({ 
-        success: true, 
-        message: `Post removed from public view${force ? ' (admin override)' : ''}`,
-        monthlyReportCount: monthlyReportCount,
-        totalReportCount: allTimeReportCount,
-        forced: force,
-        userWarned: force && monthlyReportCount < MIN_REPORTS_FOR_REMOVAL
-      });
-    } catch (error) {
-      console.error('Remove post error:', error);
-      res.status(500).json({ success: false, error: 'Server error removing post' });
+    if (!post) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
     }
-  },
 
-  // Delete post permanently - WITH MONTHLY REPORT VALIDATION
-  deletePost: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { reason, force = false } = req.body || {};
+    // Get total report count (all-time)
+    const totalReportResult = await db('reports')
+      .where('post_id', id)
+      .count('id as report_count')
+      .first();
 
-      // Get post with user info
-      const post = await db('posts')
-        .where('posts.id', id)
-        .join('users', 'posts.user_id', 'users.id')
-        .select(
-          'posts.*',
-          'users.first_name',
-          'users.last_name',
-          'users.email'
-        )
-        .first();
-      
-      if (!post) {
-        return res.status(404).json({ success: false, error: 'Post not found' });
-      }
+    const totalReportCount = totalReportResult ? parseInt(totalReportResult.report_count) : 0;
 
-      // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT
-      const currentDate = new Date();
-      const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
-      
-      const reportCountResult = await db('reports')
-        .where('post_id', id)
-        .where('reported_month', currentMonth)
-        .count('id as report_count')
-        .first();
-
-      const monthlyReportCount = reportCountResult ? parseInt(reportCountResult.report_count) : 0;
-
-      // 🆕 GET ALL-TIME REPORT COUNT
-      const allTimeReportResult = await db('reports')
-        .where('post_id', id)
-        .count('id as report_count')
-        .first();
-
-      const allTimeReportCount = allTimeReportResult ? parseInt(allTimeReportResult.report_count) : 0;
-
-      // 🎯 Report-based validation for deletion with MONTHLY counts
-      const MIN_REPORTS_FOR_DELETION = 5;
-      const hasEnoughReports = monthlyReportCount >= MIN_REPORTS_FOR_DELETION;
-      
-      if (!hasEnoughReports && !force) {
-        return res.status(400).json({
-          success: false,
-          error: `Post needs at least ${MIN_REPORTS_FOR_DELETION} unique user reports this month to be permanently deleted. Currently has ${monthlyReportCount} unique monthly reports.`,
-          monthlyReportCount: monthlyReportCount,
-          totalReportCount: allTimeReportCount,
-          requiredCount: MIN_REPORTS_FOR_DELETION,
-          canForce: true
-        });
-      }
-
-      await db('posts').where('id', id).delete();
-
-      const currentTime = new Date();
-      const notificationsToInsert = [];
-
-      // 🆕 USER WARNING SYSTEM: Check if this is a forced action with low reports
-      if (force && monthlyReportCount < MIN_REPORTS_FOR_DELETION) {
-        // Create warning notification for user
-        const warningNotification = {
-          user_id: post.user_id,
-          title: 'Post Deleted - Serious Warning',
-          message: `Your post "${post.title}" was permanently deleted by administrator despite having only ${monthlyReportCount} report(s) this month. This is a serious violation of community guidelines.${reason ? ` Reason: ${reason}` : ''}`,
-          type: 'post_deleted_warning',
-          metadata: JSON.stringify({
-            post_id: id,
-            action: 'deleted_forced',
-            admin_id: req.user.id,
-            reason: reason || 'Post permanently deleted (forced)',
-            post_title: post.title,
-            monthly_report_count: monthlyReportCount,
-            total_report_count: allTimeReportCount,
-            forced: true,
-            warning_type: 'severe_violation'
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-        notificationsToInsert.push(warningNotification);
-
-        // Send warning email to user
-        await emailService.sendPostActionWarning(
-          post.email,
-          `${post.first_name} ${post.last_name}`,
-          'deleted',
-          post.title,
-          reason,
-          monthlyReportCount,
-          MIN_REPORTS_FOR_DELETION,
-          true // serious violation
-        );
-      } else {
-        // Regular notification (not forced or has enough reports)
-        const userNotificationData = {
-          user_id: post.user_id,
-          title: 'Post Deleted',
-          message: `Your post "${post.title}" has been permanently deleted${reason ? `. Reason: ${reason}` : ''}`,
-          type: 'post_deleted',
-          metadata: JSON.stringify({
-            post_id: id,
-            action: 'deleted',
-            admin_id: req.user.id,
-            reason: reason || 'Post permanently deleted',
-            post_title: post.title,
-            monthly_report_count: monthlyReportCount,
-            total_report_count: allTimeReportCount,
-            forced: force
-          }),
-          is_read: false,
-          created_at: currentTime
-        };
-        notificationsToInsert.push(userNotificationData);
-
-        // Send regular email notification
-        await emailService.sendPostActionNotification(
-          post.email,
-          `${post.first_name} ${post.last_name}`,
-          'deleted',
-          post.title,
-          reason
-        );
-      }
-
-      // Always create admin notification for audit trail
-      const adminNotificationData = {
-        user_id: req.user.id,
-        title: 'Post Deletion',
-        message: `You deleted post "${post.title}" by ${post.first_name} ${post.last_name}${force ? ' (FORCED - Low monthly reports)' : ''}`,
-        type: 'post_deleted',
-        metadata: JSON.stringify({
-          post_id: id,
-          action: 'deleted',
-          target_user_id: post.user_id,
-          target_user_name: `${post.first_name} ${post.last_name}`,
-          reason: reason || 'Post permanently deleted',
-          post_title: post.title,
-          performed_by: req.user.id,
-          monthly_report_count: monthlyReportCount,
-          total_report_count: allTimeReportCount,
-          forced: force
-        }),
-        is_read: false,
-        created_at: currentTime
-      };
-      notificationsToInsert.push(adminNotificationData);
-
-      if (notificationsToInsert.length > 0) {
-        await db('notifications').insert(notificationsToInsert);
-      }
-
-      res.json({ 
-        success: true, 
-        message: `Post deleted permanently${force ? ' (admin override)' : ''}`,
-        monthlyReportCount: monthlyReportCount,
-        totalReportCount: allTimeReportCount,
-        forced: force,
-        userWarned: force && monthlyReportCount < MIN_REPORTS_FOR_DELETION
+    // Simple report count check - remove if 3+ reports
+    const MIN_REPORTS_FOR_REMOVAL = 3;
+    if (totalReportCount < MIN_REPORTS_FOR_REMOVAL) {
+      return res.status(400).json({
+        success: false,
+        error: `Post needs at least ${MIN_REPORTS_FOR_REMOVAL} reports to be removed (currently has ${totalReportCount})`
       });
-    } catch (error) {
-      console.error('Delete post error:', error);
-      res.status(500).json({ success: false, error: 'Server error deleting post' });
     }
-  },
+
+    // Remove the post
+    await db('posts')
+      .where('id', id)
+      .update({ 
+        status: 'Removed',
+        reason: reason || 'Post removed by administrator',
+        updated_at: new Date()
+      });
+
+    const currentTime = new Date();
+    const notificationsToInsert = [];
+
+    // USER WARNING NOTIFICATION - KEEP THIS!
+    const warningNotification = {
+      user_id: post.user_id,
+      title: 'Post Removed - Community Reports',
+      message: `Your post "${post.title}" was removed due to reaching ${totalReportCount} community reports. Please review community guidelines.${reason ? ` Additional reason: ${reason}` : ''}`,
+      type: 'post_removed_warning',
+      metadata: JSON.stringify({
+        post_id: id,
+        action: 'removed',
+        admin_id: req.user.id,
+        reason: reason || 'Post removed due to community reports',
+        post_title: post.title,
+        total_report_count: totalReportCount,
+        threshold: MIN_REPORTS_FOR_REMOVAL,
+        warning_type: 'community_reports_threshold'
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(warningNotification);
+
+    // ADMIN NOTIFICATION
+    const adminNotificationData = {
+      user_id: req.user.id,
+      title: 'Post Removed',
+      message: `You removed post "${post.title}" by ${post.first_name} ${post.last_name} from public view (${totalReportCount} reports)`,
+      type: 'post_removed',
+      metadata: JSON.stringify({
+        post_id: id,
+        action: 'removed',
+        target_user_id: post.user_id,
+        target_user_name: `${post.first_name} ${post.last_name}`,
+        reason: reason || 'Post removed by administrator',
+        post_title: post.title,
+        performed_by: req.user.id,
+        total_report_count: totalReportCount
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(adminNotificationData);
+
+    if (notificationsToInsert.length > 0) {
+      await db('notifications').insert(notificationsToInsert);
+    }
+
+    // Send warning email to user
+    await emailService.sendPostActionWarning(
+      post.email,
+      `${post.first_name} ${post.last_name}`,
+      'removed',
+      post.title,
+      reason,
+      totalReportCount,
+      MIN_REPORTS_FOR_REMOVAL
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Post removed from public view!'
+    });
+  } catch (error) {
+    console.error('Remove post error:', error);
+    res.status(500).json({ success: false, error: 'Server error removing post' });
+  }
+},
+// Delete post permanently - WITH SERIOUS WARNING NOTIFICATION
+deletePost: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+
+    // Get post with user info
+    const post = await db('posts')
+      .where('posts.id', id)
+      .join('users', 'posts.user_id', 'users.id')
+      .select('posts.*', 'users.first_name', 'users.last_name', 'users.email')
+      .first();
+    
+    if (!post) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
+    }
+
+    // Get total report count (all-time)
+    const totalReportResult = await db('reports')
+      .where('post_id', id)
+      .count('id as report_count')
+      .first();
+
+    const totalReportCount = totalReportResult ? parseInt(totalReportResult.report_count) : 0;
+
+    // Simple report count check - delete if 5+ reports
+    const MIN_REPORTS_FOR_DELETION = 5;
+    if (totalReportCount < MIN_REPORTS_FOR_DELETION) {
+      return res.status(400).json({
+        success: false,
+        error: `Post needs at least ${MIN_REPORTS_FOR_DELETION} reports to be permanently deleted (currently has ${totalReportCount})`
+      });
+    }
+
+    await db('posts').where('id', id).delete();
+
+    const currentTime = new Date();
+    const notificationsToInsert = [];
+
+    // SERIOUS WARNING NOTIFICATION - KEEP THIS!
+    const warningNotification = {
+      user_id: post.user_id,
+      title: 'Post Deleted - Serious Violation',
+      message: `Your post "${post.title}" was permanently deleted due to reaching ${totalReportCount} community reports, indicating serious violations. Please review community guidelines immediately.${reason ? ` Reason: ${reason}` : ''}`,
+      type: 'post_deleted_warning',
+      metadata: JSON.stringify({
+        post_id: id,
+        action: 'deleted',
+        admin_id: req.user.id,
+        reason: reason || 'Post permanently deleted due to serious community reports',
+        post_title: post.title,
+        total_report_count: totalReportCount,
+        threshold: MIN_REPORTS_FOR_DELETION,
+        warning_type: 'serious_violation_threshold'
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(warningNotification);
+
+    // ADMIN NOTIFICATION
+    const adminNotificationData = {
+      user_id: req.user.id,
+      title: 'Post Deletion',
+      message: `You deleted post "${post.title}" by ${post.first_name} ${post.last_name} (${totalReportCount} reports - serious violation)`,
+      type: 'post_deleted',
+      metadata: JSON.stringify({
+        post_id: id,
+        action: 'deleted',
+        target_user_id: post.user_id,
+        target_user_name: `${post.first_name} ${post.last_name}`,
+        reason: reason || 'Post permanently deleted',
+        post_title: post.title,
+        performed_by: req.user.id,
+        total_report_count: totalReportCount
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(adminNotificationData);
+
+    if (notificationsToInsert.length > 0) {
+      await db('notifications').insert(notificationsToInsert);
+    }
+
+    // Send serious warning email to user
+    await emailService.sendPostActionWarning(
+      post.email,
+      `${post.first_name} ${post.last_name}`,
+      'deleted',
+      post.title,
+      reason,
+      totalReportCount,
+      MIN_REPORTS_FOR_DELETION,
+      true // serious violation
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Post deleted permanently!'
+    });
+  } catch (error) {
+    console.error('Delete post error:', error);
+    res.status(500).json({ success: false, error: 'Server error deleting post' });
+  }
+},
 
   // Restore post - NO REPORT VALIDATION NEEDED
   restorePost: async (req, res) => {
