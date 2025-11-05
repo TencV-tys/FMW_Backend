@@ -40,6 +40,11 @@ const authMiddleware = async (req, res, next) => {
 };
 
 const adminMiddleware = (req, res, next) => {
+  // ADD THIS CHECK FIRST
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required. Please log in.' });
+  }
+
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Access denied. Admin role required.' });
   }

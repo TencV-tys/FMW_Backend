@@ -422,6 +422,52 @@ userWarning: (userName, monthlyReports, totalReports) => {
     </div>
   `;
 },
+// Add this to your emailTemplates.js
+reportDeleted: (userName, postTitle, reason, reportId) => {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
+        <h1 style="margin: 0; font-size: 24px;">Report Deleted</h1>
+      </div>
+      
+      <div style="padding: 30px;">
+        <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
+          Hello <strong>${userName}</strong>,
+        </p>
+        
+        <p style="font-size: 16px; color: #666; margin-bottom: 20px;">
+          Your report has been deleted by an administrator.
+        </p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0;">Report Details</h3>
+          <table style="width: 100%;">
+            <tr>
+              <td style="padding: 8px 0; color: #666; width: 120px;"><strong>Report ID:</strong></td>
+              <td style="padding: 8px 0; color: #333;">#${reportId}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Post Title:</strong></td>
+              <td style="padding: 8px 0; color: #333;">"${postTitle}"</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; color: #666;"><strong>Reason:</strong></td>
+              <td style="padding: 8px 0; color: #333;">${reason}</td>
+            </tr>
+          </table>
+        </div>
+        
+        <p style="font-size: 14px; color: #999; margin-top: 30px;">
+          If you believe this was done in error, please contact our support team.
+        </p>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;">
+        <p style="margin: 0;">Best regards,<br>The Community Platform Team</p>
+      </div>
+    </div>
+  `;
+},
 
 };
 

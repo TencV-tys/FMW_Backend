@@ -224,7 +224,15 @@ sendUserWarning: async (userEmail, userName, monthlyReports, totalReports) => {
 
   return await emailService.sendNotification(userEmail, subject, message, htmlContent);
 },
+// REPORT DELETED EMAIL FUNCTION
+sendReportDeletedEmail: async (reporterEmail, reporterName, postTitle, reason, reportId) => {
+  const subject = 'Report Deleted - Community Platform';
+  const message = `Hello ${reporterName},\n\nYour report has been deleted by an administrator.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n- Report ID: #${reportId}\n\nIf you believe this was done in error, please contact our support team.\n\nBest regards,\nThe Admin Team`;
+  
+  const htmlContent = emailTemplates.reportDeleted(reporterName, postTitle, reason, reportId);
 
+  return await emailService.sendNotification(reporterEmail, subject, message, htmlContent);
+},
 };
 
 module.exports = emailService;

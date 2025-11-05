@@ -391,7 +391,129 @@ deleteUserReport: async (req, res) => {
       error: 'Server error deleting report'
     });
   }
-} 
+},
+ // DELETE REPORT - ADMIN ONLY
+ // DELETE REPORT - ADMIN ONLY
+deleteReport: async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if report exists
+    const report = await db('reports')
+      .where('id', id)
+      .first();
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found'
+      });
+    }
+
+    // 🆕 CHECK IF REPORT CAN BE DELETED (only dismissed or resolved)
+    if (!['dismissed', 'resolved'].includes(report.status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only dismissed or resolved reports can be deleted'
+      });
+    }
+
+    // Get detailed report information for notifications
+    const reportDetails = await db('reports')
+      .where('reports.id', id)
+      .join('users as reporters', 'reports.reporter_id', 'reporters.id')
+      .join('posts', 'reports.post_id', 'posts.id')
+      .join('users as post_authors', 'posts.user_id', 'post_authors.id')
+      .select(
+        'reports.*',
+        'reporters.first_name as reporter_first_name',
+        'reporters.last_name as reporter_last_name',
+        'reporters.email as reporter_email',
+        'posts.title as post_title',
+        'post_authors.first_name as post_author_first_name',
+        'post_authors.last_name as post_author_last_name'
+      )
+      .first();
+
+    // Delete the report
+    await db('reports').where('id', id).delete();
+
+    const currentTime = new Date();
+    const notificationsToInsert = [];
+
+    // Create admin notification for audit trail
+    const adminNotification = {
+      user_id: req.user.id,
+      title: 'Report Deleted',
+      message: `You deleted report #${id} for post "${reportDetails.post_title}" by ${reportDetails.post_author_first_name} ${reportDetails.post_author_last_name}`,
+      type: 'report_deleted',
+      metadata: JSON.stringify({
+        report_id: id,
+        post_id: reportDetails.post_id,
+        post_title: reportDetails.post_title,
+        reporter_name: `${reportDetails.reporter_first_name} ${reportDetails.reporter_last_name}`,
+        post_author_name: `${reportDetails.post_author_first_name} ${reportDetails.post_author_last_name}`,
+        reason: reportDetails.reason,
+        status: reportDetails.status,
+        deleted_by: req.user.id,
+        deleted_at: currentTime
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(adminNotification);
+
+    // 🆕 ALWAYS SEND NOTIFICATION AND EMAIL TO REPORTER WHEN REPORT IS DELETED
+    const reporterNotification = {
+      user_id: reportDetails.reporter_id,
+      title: 'Report Deleted by Administrator',
+      message: `Your report for post "${reportDetails.post_title}" has been deleted by an administrator.`,
+      type: 'report_deleted',
+      metadata: JSON.stringify({
+        report_id: id,
+        post_id: reportDetails.post_id,
+        post_title: reportDetails.post_title,
+        deleted_by_admin: true,
+        deleted_at: currentTime
+      }),
+      is_read: false,
+      created_at: currentTime
+    };
+    notificationsToInsert.push(reporterNotification);
+
+    // 🆕 ALWAYS SEND EMAIL TO REPORTER WHEN REPORT IS DELETED
+    await emailService.sendReportDeletedEmail(
+      reportDetails.reporter_email,
+      reportDetails.reporter_first_name,
+      reportDetails.post_title,
+      reportDetails.reason,
+      id
+    );
+
+    // Insert all notifications
+    if (notificationsToInsert.length > 0) {
+      await db('notifications').insert(notificationsToInsert);
+    }
+
+    res.json({
+      success: true,
+      message: 'Report deleted successfully',
+      deletedReport: {
+        id: parseInt(id),
+        post_title: reportDetails.post_title,
+        reporter_name: `${reportDetails.reporter_first_name} ${reportDetails.reporter_last_name}`
+      }
+    });
+
+  } catch (error) {
+    console.error('Delete report error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error deleting report'
+    });
+  }
+},
+
 };
 
 module.exports = reportController; 
