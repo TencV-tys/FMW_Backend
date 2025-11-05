@@ -8,9 +8,9 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   }
 });
+ 
 
-
-
+ 
 const emailService = {
   sendNotification: async (to, subject, message, htmlContent = null) => {
     try {
@@ -214,7 +214,17 @@ sendContactFormNotification: async (adminEmail, formData) => {
     `New contact form submission from ${name} (${email}). Subject: ${subject}. Message: ${message}`, 
     mailOptions.html
   );
-}
+},
+// Send automatic warning email
+sendUserWarning: async (userEmail, userName, monthlyReports, totalReports) => {
+  const subject = `⚠️ Community Guidelines Warning - ${monthlyReports} Monthly Reports`;
+  const message = `Hello ${userName},\n\nYour account has received ${monthlyReports} reports this month (${totalReports} total reports).\n\nPlease review our community guidelines to ensure your posts comply with our standards. Continued violations may result in account suspension.\n\nBest regards,\nThe Admin Team`;
+  
+  const htmlContent = emailTemplates.userWarning(userName, monthlyReports, totalReports);
+
+  return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+},
+
 };
 
 module.exports = emailService;

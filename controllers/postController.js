@@ -332,8 +332,6 @@ const postController = {
     }
   },
 
-  // PRIVATE HELPER METHODS
-
   // Notify admins when user marks post as resolved
   _notifyAdminsPostResolved: async (postId, post, user) => {
     try {
@@ -548,7 +546,7 @@ const postController = {
           type: 'deletion_warning',
           metadata: JSON.stringify({
             current_deletions: newCount,
-            monthly_limit: MONTHLY_DELETION_LIMIT,
+            monthly_limit: MONTHLY_DELETION_LIMIT, 
             remaining_deletions: MONTHLY_DELETION_LIMIT - newCount
           }),
           is_read: false,

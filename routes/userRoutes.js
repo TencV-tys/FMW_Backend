@@ -27,4 +27,4 @@ router.get('/users/stats', authMiddleware, adminMiddleware, getUsersStats);
 router.get('/users/post-stats', authMiddleware, getUserPostStats);
 router.put('/users/:id/status', authMiddleware, adminMiddleware, updateUserStatus);
 
-module.exports = router;
+module.exports = router; 

@@ -383,6 +383,46 @@ const emailTemplates = {
       </div>
     `;
   },
+// User warning template
+userWarning: (userName, monthlyReports, totalReports) => {
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+      <div style="text-align: center; margin-bottom: 20px; background: #f59e0b; color: white; padding: 20px; border-radius: 8px;">
+        <h1 style="margin: 0;">⚠️ Community Guidelines Warning</h1>
+      </div>
+      
+      <p>Hello <strong>${userName}</strong>,</p>
+      
+      <div style="background-color: #fffbeb; border: 2px solid #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0;">
+        <h3 style="color: #d97706; margin: 0 0 10px 0;">Important Notice</h3>
+        <p style="margin: 0; color: #d97706;">
+          Your account has received multiple reports that require your attention.
+        </p>
+      </div>
+      
+      <div style="background-color: white; border-left: 4px solid #f59e0b; padding: 15px; margin: 15px 0;">
+        <p style="margin: 0;"><strong>Monthly Reports:</strong> ${monthlyReports}</p>
+        <p style="margin: 5px 0 0 0;"><strong>Total Reports:</strong> ${totalReports}</p>
+      </div>
+      
+      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+        <h4 style="margin: 0 0 10px 0; color: #374151;">Recommended Actions:</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+          <li>Review our community guidelines</li>
+          <li>Ensure your posts comply with our standards</li>
+          <li>Contact support if you have questions</li>
+        </ul>
+      </div>
+      
+      <p>Continued violations may result in account suspension or permanent banning.</p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+        <p>Best regards,<br>The Admin Team</p>
+      </div>
+    </div>
+  `;
+},
+
 };
 
 module.exports = emailTemplates;

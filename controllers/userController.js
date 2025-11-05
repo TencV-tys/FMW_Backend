@@ -576,7 +576,43 @@ const getUsersWithReportStats = async (req, res) => {
     });
   }
 };
+// Send automatic warning to user
+const sendUserWarning = async (req, res) => {
+  try {
+    const { userId, monthlyReports, totalReports } = req.body;
 
+    const user = await db('users')
+      .where('id', userId)
+      .select('id', 'email', 'first_name', 'last_name')
+      .first();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    // Send warning email
+    await emailService.sendUserWarning(
+      user.email,
+      `${user.first_name} ${user.last_name}`,
+      monthlyReports,
+      totalReports
+    );
+
+    res.json({
+      success: true,
+      message: 'Warning sent to user successfully'
+    });
+  } catch (error) {
+    console.error('Send user warning error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error sending warning'
+    });
+  }
+};
 
 
 module.exports = {
@@ -588,5 +624,6 @@ module.exports = {
   getProfile,
   getUserPostStats,
   checkSuspendedUsers,
-    getUsersWithReportStats
+    getUsersWithReportStats,
+    sendUserWarning,
 };

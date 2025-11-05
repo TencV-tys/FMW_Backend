@@ -2,7 +2,7 @@ const db = require('../config/db');
 const emailService = require('../services/emailService');
 
 const adminController = {
-  // Get all posts for admin moderation
+  // Get all posts for admin moderation WITH REPORT COUNTS
   getAllPosts: async (req, res) => {
     try {
       const posts = await db('posts')
@@ -20,7 +20,38 @@ const adminController = {
         )
         .orderBy('posts.created_at', 'desc');
       
-      res.json({ success: true, posts });
+      // 🆕 ADD REPORT COUNTS TO EACH POST (SAME LOGIC AS IN ALL FUNCTIONS)
+      const postsWithReportCounts = await Promise.all(
+        posts.map(async (post) => {
+          const currentDate = new Date();
+          const currentMonth = currentDate.getFullYear() * 100 + (currentDate.getMonth() + 1);
+          
+          // 🆕 GET CURRENT MONTH'S UNIQUE REPORT COUNT (same as in removePost/deletePost)
+          const monthlyReportResult = await db('reports')
+            .where('post_id', post.id)
+            .where('reported_month', currentMonth)
+            .count('id as report_count')
+            .first();
+
+          const monthly_report_count = monthlyReportResult ? parseInt(monthlyReportResult.report_count) : 0;
+
+          // 🆕 GET ALL-TIME REPORT COUNT (same as in removePost/deletePost)
+          const totalReportResult = await db('reports')
+            .where('post_id', post.id)
+            .count('id as report_count')
+            .first();
+
+          const total_report_count = totalReportResult ? parseInt(totalReportResult.report_count) : 0;
+
+          return {
+            ...post,
+            monthly_report_count, // Same as monthlyReportCount in removePost/deletePost
+            total_report_count    // Same as totalReportCount in removePost/deletePost
+          };
+        })
+      );
+      
+      res.json({ success: true, posts: postsWithReportCounts });
     } catch (error) {
       console.error('Get all posts error:', error);
       res.status(500).json({ success: false, error: 'Server error fetching posts' });
