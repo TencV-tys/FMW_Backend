@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
+const FrontendUrl = require('../config/FrontEndUrl.js');
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -67,7 +68,7 @@ const emailService = {
   // PASSWORD RESET EMAIL
  sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
   // Use custom URL if provided, otherwise use environment variable, otherwise default
-const baseUrl = 'http://192.168.1.27:5173';
+const baseUrl = FrontendUrl();
   
   // ✅ URL encode the token to handle special characters
   const encodedToken = encodeURIComponent(resetToken);

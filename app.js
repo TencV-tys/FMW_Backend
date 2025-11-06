@@ -15,6 +15,9 @@ const adminDeletionRoutes = require('./routes/adminDeletionRoutes');
 
 const path = require('path');
 const os = require('os');
+const getFrontendUrl = require('./config/FrontEndUrl');
+const { clear } = require('console');
+
 
 const app = express();
 
@@ -65,4 +68,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📍 Local: http://localhost:${PORT}`);
   console.log(`🌐 Network: http://${localIP}:${PORT}`);
   console.log(`💻 Access from other devices on your WiFi using: http://${localIP}:${PORT}`);
+  console.log(`   Network from frontend:${getFrontendUrl()}`);
+  
 });
