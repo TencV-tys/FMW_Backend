@@ -11,7 +11,7 @@ const feedbackController = {
       
       // Validate required fields
       if (!type || !title || !description) {
-        return res.status(400).json({
+        return res.status(400).json({ 
           success: false,
           error: 'Type, title, and description are required'
         });
@@ -575,7 +575,140 @@ const feedbackController = {
     } catch (error) {
       console.error('Error handling deletion notification:', error);
     }
+  },
+  // Update feedback (user can edit their own feedback)
+updateFeedback: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type, title, description, priority } = req.body;
+    const userId = req.user.id;
+
+    // Validate required fields
+    if (!type || !title || !description) {
+      return res.status(400).json({
+        success: false,
+        error: 'Type, title, and description are required'
+      });
+    }
+
+    // Validate feedback type
+    const validTypes = ['bug', 'feature', 'suggestion', 'general'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid feedback type. Must be one of: bug, feature, suggestion, general'
+      });
+    }
+
+    // Validate priority
+    const validPriorities = ['low', 'medium', 'high', 'critical'];
+    if (!validPriorities.includes(priority)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid priority. Must be one of: low, medium, high, critical'
+      });
+    }
+
+    // Validate title and description length
+    const trimmedTitle = title.trim();
+    const trimmedDescription = description.trim();
+    
+    if (trimmedTitle.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title cannot be empty'
+      });
+    }
+
+    if (trimmedDescription.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Description cannot be empty'
+      });
+    }
+
+    if (trimmedTitle.length > 255) {
+      return res.status(400).json({
+        success: false,
+        error: 'Title must be less than 255 characters'
+      });
+    }
+
+    // Get feedback first to verify ownership
+    const feedback = await Feedback.getById(id);
+    
+    if (!feedback) {
+      return res.status(404).json({
+        success: false,
+        error: 'Feedback not found'
+      });
+    }
+
+    // Check if the feedback belongs to the current user
+    if (feedback.user_id !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'You can only edit your own feedback'
+      });
+    }
+
+    // Update feedback
+    const updateData = {
+      type,
+      title: trimmedTitle,
+      description: trimmedDescription,
+      priority,
+      updated_at: new Date()
+    };
+
+    const updated = await db('feedback')
+      .where('id', id)
+      .where('user_id', userId)
+      .update(updateData);
+
+    if (updated) {
+      // Create notification for user
+      const currentTime = new Date();
+      const userNotificationData = {
+        user_id: userId,
+        title: 'Feedback Updated',
+        message: `Your feedback "${trimmedTitle}" has been updated successfully`,
+        type: 'feedback_updated',
+        metadata: JSON.stringify({
+          feedback_id: id,
+          title: trimmedTitle,
+          type: type,
+          previous_title: feedback.title
+        }),
+        is_read: false,
+        created_at: currentTime
+      };
+
+      await db('notifications').insert(userNotificationData);
+
+      res.json({
+        success: true,
+        message: 'Feedback updated successfully',
+        feedback: {
+          id: parseInt(id),
+          ...updateData
+        }
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Feedback not found'
+      });
+    }
+  } catch (error) {
+    console.error('Update feedback error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error updating feedback'
+    });
   }
+},
+
 };
 
 module.exports = feedbackController; 
