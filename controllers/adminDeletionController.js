@@ -213,7 +213,7 @@ const adminDeletionController = {
         user_id: adminUser.id, // This goes to admin's notification list
         title: `Deletion Request ${action === 'approve' ? 'Approved' : 'Rejected'}`,
         message: `You ${action === 'approve' ? 'approved' : 'rejected'} deletion request from ${deletionRequest.first_name} ${deletionRequest.last_name}. ${admin_notes ? `Notes: ${admin_notes}` : ''}`,
-        type: `deletion_request_${action}ed`,
+        type: `deletion_request_${action === 'approve' ? 'approved' : 'rejected'}`,
         metadata: JSON.stringify({
           request_id: requestId,
           user_id: deletionRequest.user_id,
@@ -238,7 +238,7 @@ const adminDeletionController = {
         message: action === 'approve' 
           ? 'Your deletion request has been approved. The post has been deleted and this counts toward your monthly deletion limit.'
           : `Your deletion request has been rejected. ${admin_notes ? 'Reason: ' + admin_notes : ''}`,
-        type: `deletion_request_${action}ed`,
+        type: `deletion_request_${action === 'approve' ? 'approved' : 'rejected'}`,
         metadata: JSON.stringify({
           request_id: requestId,
           action: action,
@@ -337,7 +337,7 @@ const adminDeletionController = {
         error: 'Server error processing deletion request: ' + error.message
       });
     }
-  }
+  },
 };
 
 module.exports = adminDeletionController;
