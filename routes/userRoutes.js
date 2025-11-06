@@ -22,7 +22,7 @@ router.put('/users/profile', authMiddleware, upload.single('profile_photo'), upd
 router.get('/users', authMiddleware, adminMiddleware, getAllUsers);
 router.get('/admin/users-with-reports', authMiddleware, adminMiddleware, getUsersWithReportStats); 
 
-router.post('/send-user-warning', authMiddleware, adminMiddleware,sendUserWarning);
+router.post('/admin/send-user-warning', authMiddleware, adminMiddleware,sendUserWarning);
 
 router.delete('/users/:id', authMiddleware, adminMiddleware, deleted);
 router.get('/users/stats', authMiddleware, adminMiddleware, getUsersStats);
