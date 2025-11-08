@@ -78,71 +78,77 @@ const postController = {
   },
 
   // Update post
-  updatePost: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { title, description, type, category_id, barangay_id,purok_id, color, contact_info } = req.body;
+ // Update post
+updatePost: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, type, category_id, barangay_id, purok_id, color, contact_info, remove_photo } = req.body;
 
-      // Validate required fields
-      if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
-        return res.status(400).json({
-          success: false,
-          error: 'All required fields must be filled'
-        });
-      }
-
-      // First, check if post exists and belongs to user
-      const existingPost = await Post.getById(id);
-      
-      if (!existingPost) {
-        return res.status(404).json({
-          success: false,
-          error: 'Post not found'
-        });
-      }
-
-      if (existingPost.user_id !== req.user.id) {
-        return res.status(403).json({
-          success: false,
-          error: 'Access denied. You can only edit your own posts.'
-        });
-      }
-
-      const updateData = {
-        title,
-        description,
-        type,
-        category_id: parseInt(category_id),
-        barangay_id: parseInt(barangay_id),
-        purok_id: purok_id ? parseInt(purok_id) : null,
-        color: color || '',
-        contact_info,
-        updated_at: new Date()
-      };
-
-      // Add photo if a new one was uploaded
-      if (req.file) {
-        updateData.photo = req.file.filename;
-      }
-
-      const updated = await Post.update(id, updateData);
-
-      if (updated) {
-        res.json({
-          success: true,
-          message: 'Post updated successfully!'
-        });
-      } else {
-        throw new Error('Failed to update post');
-      }
-    } catch (error) {
-      console.error('Update post error:', error);
-      res.status(500).json({
+    // Validate required fields
+    if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
+      return res.status(400).json({
         success: false,
-        error: 'Server error updating post'
+        error: 'All required fields must be filled'
       });
     }
-  },
+
+    // First, check if post exists and belongs to user
+    const existingPost = await Post.getById(id);
+    
+    if (!existingPost) {
+      return res.status(404).json({
+        success: false,
+        error: 'Post not found'
+      });
+    }
+
+    if (existingPost.user_id !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied. You can only edit your own posts.'
+      });
+    }
+
+    const updateData = {
+      title,
+      description,
+      type,
+      category_id: parseInt(category_id),
+      barangay_id: parseInt(barangay_id),
+      purok_id: purok_id ? parseInt(purok_id) : null,
+      color: color || '',
+      contact_info,
+      updated_at: new Date()
+    };
+
+    // Handle photo updates
+    if (req.file) {
+      // New photo uploaded
+      updateData.photo = req.file.filename;
+    } else if (remove_photo === 'true') {
+      // Photo removal requested
+      updateData.photo = null;
+    }
+    // If neither, keep the existing photo
+
+    const updated = await Post.update(id, updateData);
+
+    if (updated) {
+      res.json({
+        success: true,
+        message: 'Post updated successfully!'
+      });
+    } else {
+      throw new Error('Failed to update post');
+    }
+  } catch (error) {
+    console.error('Update post error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error updating post'
+    });
+  }
+},
 
   // Update post status - WITH ADMIN NOTIFICATION FOR RESOLVED POSTS
   updatePostStatus: async (req, res) => {

@@ -233,4 +233,4 @@ module.exports = {
   me, 
   logout, 
   checkEmail // Export the new function
-};
+}; 
