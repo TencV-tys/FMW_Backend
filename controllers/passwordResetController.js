@@ -8,53 +8,62 @@ const { findUserByEmail } = require('../models/User');
 const passwordResetController = {
   // Request password reset
   requestReset: async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await findUserByEmail(email);
-    
-    if (!user) {
-      return res.json({ success: true });
-    }
+    try {
+      const { email } = req.body;
+      const user = await findUserByEmail(email);
+      
+      if (!user) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'No account found with this email address' 
+        }); // ✅ Fixed!
+      }
 
-    // Generate reset token
-    const resetToken = jwt.sign(
-      { 
-        id: user.id, 
+      // Generate reset token
+      const resetToken = jwt.sign(
+        { 
+          id: user.id, 
+          email: user.email,
+          type: 'password_reset'
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      // DELETE old tokens
+      await db('password_resets')
+        .where('email', user.email)
+        .del();
+
+      // INSERT new token
+      const resetData = {
         email: user.email,
-        type: 'password_reset'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
+        token: resetToken,
+        expires_at: new Date(Date.now() + 60 * 60 * 1000),
+        used: false,
+        created_at: new Date()
+      };
 
-    // ✅ DELETE old tokens instead of updating them
-    await db('password_resets')
-      .where('email', user.email)
-      .del();
+      await db('password_resets').insert(resetData);
 
-    // ✅ INSERT new token (always unused)
-    const resetData = {
-      email: user.email,
-      token: resetToken,
-      expires_at: new Date(Date.now() + 60 * 60 * 1000),
-      used: false, // ✅ Always set to false for new tokens
-      created_at: new Date()
-    };
+      console.log('✅ New reset token generated for:', user.email);
 
-    await db('password_resets').insert(resetData);
+      // Send email
+      await emailService.sendPasswordResetEmail(user.email, user.first_name, resetToken);
 
-    console.log('✅ New reset token generated for:', user.email);
+      res.json({ 
+        success: true, 
+        message: 'Password reset email sent successfully! Check your inbox.' 
+      });
 
-    // Send email...
-    await emailService.sendPasswordResetEmail(user.email, user.first_name, resetToken);
-
-    res.json({ success: true, message: 'Reset email sent' });
-
-  } catch (error) {
-    console.error('Password reset request error:', error);
-    res.status(500).json({ success: false, error: 'Server error' });
-  }
-},
+    } catch (error) {
+      console.error('Password reset request error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Server error. Please try again.' 
+      });
+    }
+  },
 
   // Verify reset token
   verifyResetToken: async (req, res) => {
