@@ -14,7 +14,7 @@ const reportController = {
         return res.status(400).json({
           success: false,
           error: 'Post ID and reason are required'
-        });
+        }); 
       }
 
       const post = await Post.getById(post_id);
@@ -510,6 +510,91 @@ deleteReport: async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Server error deleting report'
+    });
+  }
+},
+// 🆕 UPDATE USER REPORT
+updateUserReport: async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason, additional_info } = req.body;
+    const userId = req.user.id;
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reason is required'
+      });
+    }
+
+    // Check if report exists and belongs to user
+    const report = await db('reports')
+      .where('id', id)
+      .where('reporter_id', userId)
+      .first();
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        error: 'Report not found or you do not have permission to edit it'
+      });
+    }
+
+    // Check if report can be edited (only pending or under_review)
+    if (!['pending', 'under_review'].includes(report.status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only pending or under review reports can be edited'
+      });
+    }
+
+    // Update the report
+    const updateData = {
+      reason: reason.trim(),
+      additional_info: additional_info ? additional_info.trim() : '',
+      updated_at: new Date()
+    };
+
+    await db('reports')
+      .where('id', id)
+      .update(updateData);
+
+    // Get updated report with post info
+    const updatedReport = await db('reports')
+      .where('reports.id', id)
+      .join('posts', 'reports.post_id', 'posts.id')
+      .select('reports.*', 'posts.title as post_title')
+      .first();
+
+    // Create notification for admins about report update
+    const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
+    
+    for (const admin of adminUsers) {
+      await Notification.create({
+        user_id: admin.id,
+        title: 'Report Updated',
+        message: `Report for post "${updatedReport.post_title}" has been updated by the reporter`,
+        type: 'report_updated',
+        metadata: JSON.stringify({ 
+          report_id: id, 
+          post_id: updatedReport.post_id,
+          previous_reason: report.reason,
+          new_reason: updateData.reason
+        })
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Report updated successfully',
+      report: updatedReport
+    });
+
+  } catch (error) {
+    console.error('Update report error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error updating report'
     });
   }
 },
