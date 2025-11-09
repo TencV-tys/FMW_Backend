@@ -9,7 +9,7 @@ getAllNotifications: async (req, res) => {
         .where(function() {
           // Show notifications for current admin OR from admin users
           this.where('notifications.user_id', req.user.id)
-            .orWhere('users.role', 'admin');
+            .orWhere('users.role', 'admin'); 
         })
         .andWhere(function() {
           // Only show specific admin notification types (INCLUDES WARNING TYPES)
@@ -22,7 +22,7 @@ getAllNotifications: async (req, res) => {
             'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
             'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
             // 🆕 ADD WARNING TYPES FOR ADMIN AUDIT
-            'post_removed_warning', 'post_deleted_warning'
+            'post_removed_warning', 'post_deleted_warning' 
           ]);
         })
         .select(
@@ -129,78 +129,81 @@ getAllNotifications: async (req, res) => {
   },
 
   // Get notification statistics for admin - FIXED
-  getNotificationStats: async (req, res) => {
-    try {
-      const stats = await db('notifications')
-        .leftJoin('users', 'notifications.user_id', 'users.id')
-        .where(function() {
-          this.where('notifications.user_id', req.user.id)
-            .orWhere('users.role', 'admin');
-        })
-        .andWhere('notifications.type', 'in', [
-          'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
-          'report_submitted',
-          'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
-          'feedback_submitted', 'feedback_updated', 'feedback_deleted',
-          'post_resolved_by_user',
-          'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
-          'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted'
-        ])
-        .select(
-          db.raw('COUNT(*) as total'),
-          db.raw('SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread'),
-          db.raw('SUM(CASE WHEN type = "post_resolved" THEN 1 ELSE 0 END) as post_resolved'),
-          db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as post_removed'),
-          db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as post_deleted'),
-          db.raw('SUM(CASE WHEN type = "post_restored" THEN 1 ELSE 0 END) as post_restored'),
-          db.raw('SUM(CASE WHEN type = "report_submitted" THEN 1 ELSE 0 END) as reports'),
-          db.raw('SUM(CASE WHEN type = "user_suspended" THEN 1 ELSE 0 END) as user_suspended'),
-          db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
-          db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
-          db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted'),
-          db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
-          db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
-          db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted'),
-          db.raw('SUM(CASE WHEN type = "post_resolved_by_user" THEN 1 ELSE 0 END) as post_resolved_by_user'),
-          db.raw('SUM(CASE WHEN type = "deletion_request" THEN 1 ELSE 0 END) as deletion_request'),
-          db.raw('SUM(CASE WHEN type = "deletion_request_submitted" THEN 1 ELSE 0 END) as deletion_request_submitted'),
-          db.raw('SUM(CASE WHEN type = "deletion_request_approved" THEN 1 ELSE 0 END) as deletion_request_approved'),
-          db.raw('SUM(CASE WHEN type = "deletion_request_rejected" THEN 1 ELSE 0 END) as deletion_request_rejected'),
-          db.raw('SUM(CASE WHEN type = "deletion_reset" THEN 1 ELSE 0 END) as deletion_reset'),
-          db.raw('SUM(CASE WHEN type = "additional_deletions_granted" THEN 1 ELSE 0 END) as additional_deletions_granted')
-        )
-        .first();
+  // Get notification statistics for admin - FIXED COMPLETE VERSION
+getNotificationStats: async (req, res) => {
+  try { 
+    const stats = await db('notifications')
+      .leftJoin('users', 'notifications.user_id', 'users.id')
+      .where(function() {
+        this.where('notifications.user_id', req.user.id)
+          .orWhere('users.role', 'admin');
+      })
+      .andWhere('notifications.type', 'in', [
+        'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
+        'report_submitted',
+        'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
+        'feedback_submitted', 'feedback_updated', 'feedback_deleted',
+        'post_resolved_by_user',
+        'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
+        'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
+        // 🆕 ADD WARNING TYPES FOR ADMIN AUDIT
+        'post_removed_warning', 'post_deleted_warning'
+      ])
+      .select(
+        db.raw('COUNT(*) as total'),
+        db.raw('SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread'),
+        db.raw('SUM(CASE WHEN type = "post_resolved" THEN 1 ELSE 0 END) as post_resolved'),
+        db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as post_removed'),
+        db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as post_deleted'),
+        db.raw('SUM(CASE WHEN type = "post_restored" THEN 1 ELSE 0 END) as post_restored'),
+        db.raw('SUM(CASE WHEN type = "report_submitted" THEN 1 ELSE 0 END) as reports'),
+        db.raw('SUM(CASE WHEN type = "user_suspended" THEN 1 ELSE 0 END) as user_suspended'),
+        db.raw('SUM(CASE WHEN type = "user_banned" THEN 1 ELSE 0 END) as user_banned'),
+        db.raw('SUM(CASE WHEN type = "user_activated" THEN 1 ELSE 0 END) as user_activated'),
+        db.raw('SUM(CASE WHEN type = "user_deleted" THEN 1 ELSE 0 END) as user_deleted'),
+        db.raw('SUM(CASE WHEN type = "feedback_submitted" THEN 1 ELSE 0 END) as feedback_submitted'),
+        db.raw('SUM(CASE WHEN type = "feedback_updated" THEN 1 ELSE 0 END) as feedback_updated'),
+        db.raw('SUM(CASE WHEN type = "feedback_deleted" THEN 1 ELSE 0 END) as feedback_deleted'),
+        db.raw('SUM(CASE WHEN type = "post_resolved_by_user" THEN 1 ELSE 0 END) as post_resolved_by_user'),
+        db.raw('SUM(CASE WHEN type = "deletion_request" THEN 1 ELSE 0 END) as deletion_request'),
+        db.raw('SUM(CASE WHEN type = "deletion_request_submitted" THEN 1 ELSE 0 END) as deletion_request_submitted'),
+        db.raw('SUM(CASE WHEN type = "deletion_request_approved" THEN 1 ELSE 0 END) as deletion_request_approved'),
+        db.raw('SUM(CASE WHEN type = "deletion_request_rejected" THEN 1 ELSE 0 END) as deletion_request_rejected'),
+        db.raw('SUM(CASE WHEN type = "deletion_reset" THEN 1 ELSE 0 END) as deletion_reset'),
+        db.raw('SUM(CASE WHEN type = "additional_deletions_granted" THEN 1 ELSE 0 END) as additional_deletions_granted')
+      )
+      .first();
 
-      res.json({
-        success: true,
-        stats: {
-          total: parseInt(stats.total) || 0,
-          unread: parseInt(stats.unread) || 0,
-          reports: parseInt(stats.reports) || 0,
-          user_suspended: parseInt(stats.user_suspended) || 0,
-          user_banned: parseInt(stats.user_banned) || 0,
-          user_activated: parseInt(stats.user_activated) || 0,
-          user_deleted: parseInt(stats.user_deleted) || 0,
-          feedback_submitted: parseInt(stats.feedback_submitted) || 0,
-          feedback_updated: parseInt(stats.feedback_updated) || 0,
-          feedback_deleted: parseInt(stats.feedback_deleted) || 0,
-          post_resolved_by_user: parseInt(stats.post_resolved_by_user) || 0,
-          deletion_request: parseInt(stats.deletion_request) || 0,
-          deletion_request_submitted: parseInt(stats.deletion_request_submitted) || 0,
-          deletion_request_approved: parseInt(stats.deletion_request_approved) || 0,
-          deletion_request_rejected: parseInt(stats.deletion_request_rejected) || 0,
-          deletion_reset: parseInt(stats.deletion_reset) || 0,
-          additional_deletions_granted: parseInt(stats.additional_deletions_granted) || 0
-        }
-      });
-    } catch (error) {
-      console.error('Get notification stats error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error fetching notification statistics'
-      });
-    }
-  },
+    res.json({
+      success: true,
+      stats: {
+        total: parseInt(stats.total) || 0,
+        unread: parseInt(stats.unread) || 0,
+        reports: parseInt(stats.reports) || 0,
+        user_suspended: parseInt(stats.user_suspended) || 0,
+        user_banned: parseInt(stats.user_banned) || 0,
+        user_activated: parseInt(stats.user_activated) || 0,
+        user_deleted: parseInt(stats.user_deleted) || 0,
+        feedback_submitted: parseInt(stats.feedback_submitted) || 0,
+        feedback_updated: parseInt(stats.feedback_updated) || 0,
+        feedback_deleted: parseInt(stats.feedback_deleted) || 0,
+        post_resolved_by_user: parseInt(stats.post_resolved_by_user) || 0,
+        deletion_request: parseInt(stats.deletion_request) || 0,
+        deletion_request_submitted: parseInt(stats.deletion_request_submitted) || 0,
+        deletion_request_approved: parseInt(stats.deletion_request_approved) || 0,
+        deletion_request_rejected: parseInt(stats.deletion_request_rejected) || 0,
+        deletion_reset: parseInt(stats.deletion_reset) || 0,
+        additional_deletions_granted: parseInt(stats.additional_deletions_granted) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Get notification stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error fetching notification statistics'
+    });
+  }
+},
 
   // Delete notification - KEEP SAME
   deleteNotification: async (req, res) => {

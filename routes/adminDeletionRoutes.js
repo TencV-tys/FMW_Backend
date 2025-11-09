@@ -9,4 +9,4 @@ router.get('/admin/users-deletion-stats', authMiddleware, adminMiddleware, admin
 router.get('/admin/deletion-requests', authMiddleware, adminMiddleware, adminDeletionController.getDeletionRequests);
 router.put('/admin/deletion-requests/:requestId/process', authMiddleware, adminMiddleware, adminDeletionController.processDeletionRequest);
 
-module.exports = router;
+module.exports = router;   

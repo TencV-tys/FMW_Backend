@@ -597,6 +597,81 @@ const sendUserWarning = async (req, res) => {
     });
   }
 };
+// 🆕 ADD: Restore deleted user
+const restoreUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get user details
+    const user = await db('users')
+      .where('id', id)
+      .select('id', 'email', 'first_name', 'last_name', 'role', 'deleted_at')
+      .first();
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found'
+      });
+    }
+
+    if (!user.deleted_at) {
+      return res.status(400).json({
+        success: false,
+        error: 'User is not deleted'
+      });
+    }
+
+    // Restore user
+    await db('users')
+      .where('id', id)
+      .update({
+        status: 'active',
+        deleted_at: null,
+        updated_at: new Date()
+      });
+
+    const adminUser = req.user;
+
+    // Create admin notification
+    const adminNotificationData = {
+      user_id: adminUser.id,
+      title: 'User Restored',
+      message: `You restored user "${user.first_name} ${user.last_name}" (${user.email})`,
+      type: 'user_restored',
+      metadata: JSON.stringify({
+        target_user_id: user.id,
+        target_user_name: `${user.first_name} ${user.last_name}`,
+        target_user_email: user.email,
+        performed_by: adminUser.id,
+        performed_by_name: `${adminUser.first_name} ${adminUser.last_name}`
+      }),
+      is_read: false,
+      created_at: new Date()
+    };
+
+    await db('notifications').insert(adminNotificationData);
+
+    // Send email notification
+    await emailService.sendUserStatusNotification(
+      user.email,
+      `${user.first_name} ${user.last_name}`,
+      'restored'
+    );
+
+    res.json({
+      success: true,
+      message: 'User restored successfully'
+    });
+  } catch (error) {
+    console.error('Error restoring user:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error restoring user'
+    });
+  }
+};
+
 
 module.exports = {
   getAllUsers, 
@@ -609,4 +684,6 @@ module.exports = {
   checkSuspendedUsers,
   getUsersWithReportStats,
   sendUserWarning,
+  restoreUser,
+  
 };

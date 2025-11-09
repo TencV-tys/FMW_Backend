@@ -10,11 +10,11 @@ router.put('/feedback/my-feedback/:id', authMiddleware, feedbackController.updat
 router.delete('/feedback/my-feedback/:id', authMiddleware, feedbackController.deleteUserFeedback);
 
 // Admin routes 
-router.get('/feedback', authMiddleware, adminMiddleware, feedbackController.getAllFeedback);
-router.get('/feedback/stats', authMiddleware, adminMiddleware, feedbackController.getFeedbackStats);
-router.get('/feedback/status/:status', authMiddleware, adminMiddleware, feedbackController.getFeedbackByStatus);
-router.get('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.getFeedbackById);
-router.put('/feedback/:id/status', authMiddleware, adminMiddleware, feedbackController.updateFeedbackStatus);
-router.delete('/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback);
+router.get('/admin/feedback', authMiddleware, adminMiddleware, feedbackController.getAllFeedback);
+router.get('/admin/feedback/stats', authMiddleware, adminMiddleware, feedbackController.getFeedbackStats);
+router.get('/admin/feedback/status/:status', authMiddleware, adminMiddleware, feedbackController.getFeedbackByStatus);
+router.get('/admin/feedback/:id', authMiddleware, adminMiddleware, feedbackController.getFeedbackById);
+router.put('/admin/feedback/:id/status', authMiddleware, adminMiddleware, feedbackController.updateFeedbackStatus);
+router.delete('/admin/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback);
 
-module.exports = router;
+module.exports = router; 

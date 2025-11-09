@@ -14,4 +14,4 @@ router.delete('/admin/notifications', authMiddleware, adminMiddleware, adminNoti
 router.put('/admin/notifications/:id/read', authMiddleware, adminMiddleware, adminNotificationController.markAsRead);
 router.put('/admin/notifications/read-all', authMiddleware, adminMiddleware, adminNotificationController.markAllAsRead);
 
-module.exports = router;
+module.exports = router;  
