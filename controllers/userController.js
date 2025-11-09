@@ -625,7 +625,7 @@ const restoreUser = async (req, res) => {
       .where('id', id)
       .update({
         status: 'active',
-        deleted_at: null,
+        deleted_at: null, 
         updated_at: new Date()
       });
 

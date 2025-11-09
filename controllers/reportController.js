@@ -190,7 +190,7 @@ const reportController = {
       return 0;
     }
   },
-
+ 
   // 🆕 UPDATED: Handle when post reaches report threshold
   _handlePostReportThreshold: async (postId, reportCount, period = 'monthly') => {
     try {
