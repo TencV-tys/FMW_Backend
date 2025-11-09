@@ -1,17 +1,16 @@
-// services/emailTemplates.js - UPDATED WITH FEEDBACK
 const emailTemplates = {
   postAction: (userName, postTitle, action, reason) => {
     const actions = {
-      deleted: { verb: 'permanently deleted', color: '#ef4444' },
-      removed: { verb: 'removed from public view', color: '#f59e0b' },
-      resolved: { verb: 'marked as resolved', color: '#10b981' },
-      restored: { verb: 'restored', color: '#3b82f6' }
+      deleted: { verb: 'permanently deleted', color: '#dc2626' }, // Red for delete
+      removed: { verb: 'removed from public view', color: '#f59e0b' }, // Orange for remove
+      resolved: { verb: 'marked as resolved', color: '#10b981' }, // Green for resolved
+      restored: { verb: 'restored', color: '#FF8904' } // Your brown/orange for restore
     };
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h1 style="color: #333;">Post Update Notification</h1>
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Post Update Notification</h1>
         </div>
         
         <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
@@ -38,48 +37,49 @@ const emailTemplates = {
   userStatus: (userName, status, reason = '', duration = '') => {
     const statusConfig = {
       suspended: { verb: 'suspended', color: '#f59e0b', title: 'Account Suspended' },
-      banned: { verb: 'permanently banned', color: '#ef4444', title: 'Account Banned' },
+      banned: { verb: 'permanently banned', color: '#dc2626', title: 'Account Banned' },
       activated: { verb: 'activated', color: '#10b981', title: 'Account Reactivated' },
-      deleted: { verb: 'permanently deleted', color: '#dc2626', title: 'Account Deleted' }
+      deleted: { verb: 'permanently deleted', color: '#dc2626', title: 'Account Deleted' },
+      restored: { verb: 'restored', color: '#FF8904', title: 'Account Restored' }
     };
 
     const config = statusConfig[status] || statusConfig.suspended;
 
- return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <h1 style="color: #333;">${config.title}</h1>
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">${config.title}</h1>
+        </div>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+          <h2 style="color: ${config.color}; margin: 0;">Your account has been ${config.verb}</h2>
+          ${status === 'suspended' && duration ? `<p style="margin: 10px 0 0 0; font-size: 1.1em;"><strong>Duration:</strong> ${duration} day(s)</p>` : ''}
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        <div style="background-color: white; border-left: 4px solid ${config.color}; padding: 15px; margin: 15px 0;">
+          <p style="margin: 0;"><strong>Status:</strong> ${config.verb}</p>
+          ${reason ? `<p style="margin: 5px 0 0 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
+          ${status === 'suspended' && duration ? `<p style="margin: 5px 0 0 0;"><strong>Suspension Period:</strong> ${duration} day(s)</p>` : ''}
+          ${status === 'suspended' ? `<p style="margin: 5px 0 0 0;"><strong>Auto-reactivation:</strong> Your account will be automatically reactivated after the suspension period.</p>` : ''}
+        </div>
+        
+        <p>If you have any questions or believe this was done in error, please contact our support team.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Admin Team</p>
+          <p style="margin-top: 10px; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
+        </div>
       </div>
-      
-      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
-        <h2 style="color: ${config.color}; margin: 0;">Your account has been ${config.verb}</h2>
-        ${status === 'suspended' && duration ? `<p style="margin: 10px 0 0 0; font-size: 1.1em;"><strong>Duration:</strong> ${duration} day(s)</p>` : ''}
-      </div>
-      
-      <p>Hello <strong>${userName}</strong>,</p>
-      
-      <div style="background-color: white; border-left: 4px solid ${config.color}; padding: 15px; margin: 15px 0;">
-        <p style="margin: 0;"><strong>Status:</strong> ${config.verb}</p>
-        ${reason ? `<p style="margin: 5px 0 0 0;"><strong>Reason:</strong> ${reason}</p>` : ''}
-        ${status === 'suspended' && duration ? `<p style="margin: 5px 0 0 0;"><strong>Suspension Period:</strong> ${duration} day(s)</p>` : ''}
-        ${status === 'suspended' ? `<p style="margin: 5px 0 0 0;"><strong>Auto-reactivation:</strong> Your account will be automatically reactivated after the suspension period.</p>` : ''}
-      </div>
-      
-      <p>If you have any questions or believe this was done in error, please contact our support team.</p>
-      
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
-        <p>Best regards,<br>The Admin Team</p>
-        <p style="margin-top: 10px; font-size: 12px;">This is an automated message. Please do not reply to this email.</p>
-      </div>
-    </div>
-  `;
+    `;
   },
 
   passwordReset: (userName, resetLink, expiryTime = '1 hour') => {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h1 style="color: #333; background: #FF8904; color: white; padding: 20px; border-radius: 8px;">Password Reset Request</h1>
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Password Reset Request</h1>
         </div>
         
         <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
@@ -91,7 +91,7 @@ const emailTemplates = {
         <p>You requested to reset your password. Click the button below to create a new password:</p>
         
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetLink}" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+          <a href="${resetLink}" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
             Reset Your Password
           </a>
         </div>
@@ -111,11 +111,10 @@ const emailTemplates = {
     `;
   },
 
-  // NEW: REPORT SUBMITTED TEMPLATE
   reportSubmitted: (userName, postTitle, reason, additionalInfo = '', reportId) => {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: #10b981; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">Report Submitted Successfully</h1>
         </div>
         
@@ -143,20 +142,19 @@ const emailTemplates = {
     `;
   },
 
-  // NEW: REPORT STATUS UPDATE TEMPLATE
   reportStatusUpdate: (userName, postTitle, status, reason, adminNote = '', reportId) => {
     const statusConfig = {
       pending: { verb: 'reopened and is pending review', color: '#f59e0b' },
-      under_review: { verb: 'is now under review', color: '#8b5cf6' },
+      under_review: { verb: 'is now under review', color: '#FF8904' }, // Using your brown/orange
       resolved: { verb: 'has been resolved', color: '#10b981' },
-      dismissed: { verb: 'has been dismissed', color: '#ef4444' }
+      dismissed: { verb: 'has been dismissed', color: '#dc2626' }
     };
 
     const config = statusConfig[status] || statusConfig.pending;
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: ${config.color}; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">Report ${status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}</h1>
         </div>
         
@@ -186,11 +184,10 @@ const emailTemplates = {
     `;
   },
 
-  // NEW: ADMIN REPORT NOTIFICATION TEMPLATE
   adminReportNotification: (adminName, postTitle, reason, additionalInfo = '', reportId, reporterName) => {
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: #FF8904; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">New Report Submitted</h1>
         </div>
         
@@ -211,7 +208,7 @@ const emailTemplates = {
         <p>Please review this report in the admin panel and take appropriate action.</p>
         
         <div style="text-align: center; margin: 25px 0;">
-          <a href="http://localhost:5173/admin/reports" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+          <a href="http://localhost:5173/admin/reports" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
             Review Report
           </a>
         </div>
@@ -223,25 +220,24 @@ const emailTemplates = {
     `;
   },
 
-  // 🆕 FEEDBACK NOTIFICATION TEMPLATE
   feedbackNotification: (adminName, type, title, description, priority, submittedBy) => {
     const typeColors = {
-      bug: '#ef4444',
+      bug: '#dc2626',
       feature: '#10b981',
-      suggestion: '#8b5cf6',
-      general: '#FF8904'
+      suggestion: '#FF8904', // Using your brown/orange
+      general: '#FF8904'     // Using your brown/orange
     };
 
     const priorityColors = {
-      critical: '#ef4444',
+      critical: '#dc2626',
       high: '#f59e0b',
-      medium: '#eab308',
+      medium: '#FF8904', // Using your brown/orange
       low: '#10b981'
     };
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: ${typeColors[type] || '#FF8904'}; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">New ${type.charAt(0).toUpperCase() + type.slice(1)} Feedback</h1>
         </div>
         
@@ -257,7 +253,7 @@ const emailTemplates = {
             </span>
           </p>
           <p style="margin: 5px 0;"><strong>Priority:</strong> 
-            <span style="color: ${priorityColors[priority] || '#6b7280'}; font-weight: bold; text-transform: capitalize;">
+            <span style="color: ${priorityColors[priority] || '#FF8904'}; font-weight: bold; text-transform: capitalize;">
               ${priority}
             </span>
           </p>
@@ -269,7 +265,7 @@ const emailTemplates = {
         <p>Please review this feedback in the admin panel and take appropriate action.</p>
         
         <div style="text-align: center; margin: 25px 0;">
-          <a href="http://localhost:5173/admin/feedback" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+          <a href="http://localhost:5173/admin/feedback" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
             Review Feedback
           </a>
         </div>
@@ -281,19 +277,18 @@ const emailTemplates = {
     `;
   },
 
-  // 🆕 FEEDBACK STATUS UPDATE TEMPLATE
   feedbackStatusUpdate: (userName, title, status, adminNotes) => {
     const statusColors = {
       pending: '#f59e0b',
-      reviewed: '#8b5cf6',
-      in_progress: '#3b82f6',
+      reviewed: '#FF8904', // Using your brown/orange
+      in_progress: '#FF8904', // Using your brown/orange
       completed: '#10b981',
-      rejected: '#ef4444'
+      rejected: '#dc2626'
     };
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: ${statusColors[status] || '#FF8904'}; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">Feedback Status Updated</h1>
         </div>
         
@@ -320,18 +315,18 @@ const emailTemplates = {
       </div>
     `;
   },
-  // 🆕 POST ACTION WARNING TEMPLATE
+
   postActionWarning: (userName, postTitle, action, reason, currentReports, requiredReports, isSerious = false) => {
     const actions = {
       removed: { verb: 'removed from public view', color: '#f59e0b' },
-      deleted: { verb: 'permanently deleted', color: '#ef4444' }
+      deleted: { verb: 'permanently deleted', color: '#dc2626' }
     };
 
     const config = actions[action] || actions.removed;
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-        <div style="text-align: center; margin-bottom: 20px; background: ${isSerious ? '#ef4444' : '#f59e0b'}; color: white; padding: 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
           <h1 style="margin: 0;">${isSerious ? '⚠️ SERIOUS POLICY VIOLATION' : 'Community Guidelines Notice'}</h1>
           <p style="margin: 10px 0 0 0; font-size: 1.1em;">Your post has been ${config.verb}</p>
         </div>
@@ -383,92 +378,73 @@ const emailTemplates = {
       </div>
     `;
   },
-// User warning template
-userWarning: (userName, monthlyReports, totalReports) => {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-      <div style="text-align: center; margin-bottom: 20px; background: #f59e0b; color: white; padding: 20px; border-radius: 8px;">
-        <h1 style="margin: 0;">⚠️ Community Guidelines Warning</h1>
-      </div>
-      
-      <p>Hello <strong>${userName}</strong>,</p>
-      
-      <div style="background-color: #fffbeb; border: 2px solid #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0;">
-        <h3 style="color: #d97706; margin: 0 0 10px 0;">Important Notice</h3>
-        <p style="margin: 0; color: #d97706;">
-          Your account has received multiple reports that require your attention.
-        </p>
-      </div>
-      
-      <div style="background-color: white; border-left: 4px solid #f59e0b; padding: 15px; margin: 15px 0;">
-        <p style="margin: 0;"><strong>Monthly Reports:</strong> ${monthlyReports}</p>
-        <p style="margin: 5px 0 0 0;"><strong>Total Reports:</strong> ${totalReports}</p>
-      </div>
-      
-      <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
-        <h4 style="margin: 0 0 10px 0; color: #374151;">Recommended Actions:</h4>
-        <ul style="margin: 0; padding-left: 20px;">
-          <li>Review our community guidelines</li>
-          <li>Ensure your posts comply with our standards</li>
-          <li>Contact support if you have questions</li>
-        </ul>
-      </div>
-      
-      <p>Continued violations may result in account suspension or permanent banning.</p>
-      
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
-        <p>Best regards,<br>The Admin Team</p>
-      </div>
-    </div>
-  `;
-},
-// Add this to your emailTemplates.js
-reportDeleted: (userName, postTitle, reason, reportId) => {
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
-      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
-        <h1 style="margin: 0; font-size: 24px;">Report Deleted</h1>
-      </div>
-      
-      <div style="padding: 30px;">
-        <p style="font-size: 16px; color: #333; margin-bottom: 20px;">
-          Hello <strong>${userName}</strong>,
-        </p>
+
+  userWarning: (userName) => {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">⚠️ Community Guidelines Warning</h1>
+        </div>
         
-        <p style="font-size: 16px; color: #666; margin-bottom: 20px;">
-          Your report has been deleted by an administrator.
-        </p>
+        <p>Hello <strong>${userName}</strong>,</p>
         
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #dc3545; margin: 20px 0;">
-          <h3 style="color: #333; margin-top: 0;">Report Details</h3>
-          <table style="width: 100%;">
-            <tr>
-              <td style="padding: 8px 0; color: #666; width: 120px;"><strong>Report ID:</strong></td>
-              <td style="padding: 8px 0; color: #333;">#${reportId}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #666;"><strong>Post Title:</strong></td>
-              <td style="padding: 8px 0; color: #333;">"${postTitle}"</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px 0; color: #666;"><strong>Reason:</strong></td>
-              <td style="padding: 8px 0; color: #333;">${reason}</td>
-            </tr>
-          </table>
+        <div style="background-color: #fffbeb; border: 2px solid #fef3c7; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="color: #d97706; margin: 0 0 10px 0;">Important Notice</h3>
+          <p style="margin: 0; color: #d97706;">
+            Your account has recently received reports for content that may violate our community guidelines.
+          </p>
+        </div>
+        
+        <div style="background-color: white; border-left: 4px solid #FF8904; padding: 15px; margin: 15px 0;">
+          <p style="margin: 0;"><strong>Action Required:</strong> Please review our community guidelines</p>
+        </div>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h4 style="margin: 0 0 10px 0; color: #374151;">Recommended Actions:</h4>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li>Review our community guidelines</li>
+            <li>Ensure your posts comply with our standards</li>
+            <li>Contact support if you have questions</li>
+          </ul>
+        </div>
+        
+        <p>Continued violations may result in account suspension or permanent banning.</p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Admin Team</p>
+        </div>
+      </div>
+    `;
+  },
+
+  reportDeleted: (userName, postTitle, reason, reportId) => {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">Report Deleted</h1>
+        </div>
+        
+        <p>Hello <strong>${userName}</strong>,</p>
+        
+        <p>Your report has been deleted by an administrator.</p>
+        
+        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+          <h3 style="margin: 0 0 10px 0; color: #333;">Report Details:</h3>
+          <p style="margin: 5px 0;"><strong>Report ID:</strong> #${reportId}</p>
+          <p style="margin: 5px 0;"><strong>Post Title:</strong> "${postTitle}"</p>
+          <p style="margin: 5px 0;"><strong>Reason:</strong> ${reason}</p>
         </div>
         
         <p style="font-size: 14px; color: #999; margin-top: 30px;">
           If you believe this was done in error, please contact our support team.
         </p>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>Best regards,<br>The Community Platform Team</p>
+        </div>
       </div>
-      
-      <div style="background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 14px;">
-        <p style="margin: 0;">Best regards,<br>The Community Platform Team</p>
-      </div>
-    </div>
-  `;
-},
-
+    `;
+  }
 };
 
 module.exports = emailTemplates;

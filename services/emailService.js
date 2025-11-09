@@ -9,9 +9,7 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   }
 });
- 
 
- 
 const emailService = {
   sendNotification: async (to, subject, message, htmlContent = null) => {
     try {
@@ -54,7 +52,8 @@ const emailService = {
       suspended: 'suspended',
       banned: 'permanently banned',
       activated: 'activated',
-      deleted: 'permanently deleted'
+      deleted: 'permanently deleted',
+      restored: 'restored'
     };
 
     const subject = `Account ${statusMessages[status]}`;
@@ -66,23 +65,21 @@ const emailService = {
   },
 
   // PASSWORD RESET EMAIL
- sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
-  // Use custom URL if provided, otherwise use environment variable, otherwise default
-const baseUrl = FrontendUrl();
-  
-  // ✅ URL encode the token to handle special characters
-  const encodedToken = encodeURIComponent(resetToken);
-  const resetLink = `${baseUrl}/reset-password?token=${encodedToken}`;
-  
-  const subject = 'Password Reset Request - Community Platform';
-  const message = `Hello ${userName},\n\nYou requested to reset your password. Use this link to reset your password: ${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nThe Admin Team`;
-  
-  const htmlContent = emailTemplates.passwordReset(userName, resetLink, '1 hour');
+  sendPasswordResetEmail: async (userEmail, userName, resetToken) => {
+    const baseUrl = FrontendUrl();
+    
+    const encodedToken = encodeURIComponent(resetToken);
+    const resetLink = `${baseUrl}/reset-password?token=${encodedToken}`;
+    
+    const subject = 'Password Reset Request - Community Platform';
+    const message = `Hello ${userName},\n\nYou requested to reset your password. Use this link to reset your password: ${resetLink}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nThe Admin Team`;
+    
+    const htmlContent = emailTemplates.passwordReset(userName, resetLink, '1 hour');
 
-  return await emailService.sendNotification(userEmail, subject, message, htmlContent);
-},
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
 
-  // NEW: REPORT SUBMITTED EMAIL WITH MONTHLY COUNTS
+  // REPORT SUBMITTED EMAIL WITH MONTHLY COUNTS
   sendReportSubmittedEmail: async (userEmail, userName, postTitle, reason, additionalInfo = '', reportId, monthlyReportCount = 0, totalReportCount = 0) => {
     const subject = 'Report Submitted Successfully - Community Platform';
     const message = `Hello ${userName},\n\nYour report has been submitted successfully and is now under review by our admin team.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Report ID: #${reportId}\n- Monthly Reports: ${monthlyReportCount}\n- Total Reports: ${totalReportCount}\n- Status: Under Review\n\nWe will review your report and take appropriate action. You will be notified of any updates.\n\nThank you for helping us maintain a safe community.\n\nBest regards,\nThe Community Platform Team`;
@@ -92,7 +89,7 @@ const baseUrl = FrontendUrl();
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // NEW: REPORT STATUS UPDATE EMAIL
+  // REPORT STATUS UPDATE EMAIL
   sendReportStatusUpdate: async (userEmail, userName, postTitle, status, reason, adminNote = '', reportId) => {
     const statusMessages = {
       pending: 'reopened and is pending review',
@@ -109,7 +106,7 @@ const baseUrl = FrontendUrl();
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // NEW: ADMIN REPORT NOTIFICATION WITH MONTHLY COUNTS
+  // ADMIN REPORT NOTIFICATION WITH MONTHLY COUNTS
   sendAdminReportNotification: async (adminEmail, adminName, postTitle, reason, additionalInfo = '', reportId, reporterName, monthlyReportCount = 0, totalReportCount = 0) => {
     const subject = 'New Report Submitted - Action Required';
     const message = `Hello ${adminName},\n\nA new report has been submitted for the post "${postTitle}".\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n${additionalInfo ? `- Additional Info: ${additionalInfo}\n` : ''}- Reporter: ${reporterName}\n- Report ID: #${reportId}\n- Monthly Reports: ${monthlyReportCount}\n- Total Reports: ${totalReportCount}\n\nPlease review this report in the admin panel.\n\nBest regards,\nThe Community Platform`;
@@ -119,7 +116,7 @@ const baseUrl = FrontendUrl();
     return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
   },
 
-  // 🆕 FEEDBACK NOTIFICATION TO ADMINS
+  // FEEDBACK NOTIFICATION TO ADMINS
   sendFeedbackNotification: async (adminEmail, adminName, type, title, description, priority, submittedBy) => {
     const subject = `New ${type} Feedback: ${title}`;
     const message = `Hello ${adminName},\n\nA new ${type} feedback has been submitted.\n\nFeedback Details:\n- Type: ${type}\n- Priority: ${priority}\n- Submitted by: ${submittedBy}\n- Title: ${title}\n- Description: ${description}\n\nPlease review this feedback in the admin panel.\n\nBest regards,\nThe Community Platform`;
@@ -129,7 +126,7 @@ const baseUrl = FrontendUrl();
     return await emailService.sendNotification(adminEmail, subject, message, htmlContent);
   },
 
-  // 🆕 FEEDBACK STATUS UPDATE TO USERS
+  // FEEDBACK STATUS UPDATE TO USERS
   sendFeedbackStatusUpdate: async (userEmail, userName, title, status, adminNotes) => {
     const subject = `Feedback Update: ${title}`;
     const message = `Hello ${userName},\n\nYour feedback "${title}" has been updated to: ${status}\n${adminNotes ? `\nAdmin Notes: ${adminNotes}\n` : ''}\nThank you for your contribution to improving our platform!\n\nBest regards,\nThe Community Platform Team`;
@@ -139,7 +136,7 @@ const baseUrl = FrontendUrl();
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
 
-  // 🆕 POST ACTION WARNING EMAIL
+  // POST ACTION WARNING EMAIL
   sendPostActionWarning: async (userEmail, userName, action, postTitle, reason, currentReports, requiredReports, isSerious = false) => {
     const actions = {
       removed: 'removed from public view',
@@ -158,17 +155,16 @@ const baseUrl = FrontendUrl();
 
     return await emailService.sendNotification(userEmail, subject, message, htmlContent);
   },
-  // Add to your emailService.js
-sendContactFormNotification: async (adminEmail, formData) => {
-  const { name, email, subject, message, category } = formData;
-  
-  const mailOptions = {
-    from: `"Contact Form" <${process.env.EMAIL_USER}>`,
-    to: adminEmail,
-    subject: `New Contact Form: ${subject}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #FF8904;">New Contact Form Submission</h2>
+
+  // CONTACT FORM NOTIFICATION
+  sendContactFormNotification: async (adminEmail, formData) => {
+    const { name, email, subject, message, category } = formData;
+    
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
+          <h1 style="margin: 0;">New Contact Form Submission</h1>
+        </div>
         
         <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
           <h3 style="color: #333; margin-top: 0;">Contact Details</h3>
@@ -202,38 +198,36 @@ sendContactFormNotification: async (adminEmail, formData) => {
           </div>
         </div>
 
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5;">
-          <p style="color: #666; font-size: 14px;">
-            This message was sent from the contact form on your website.
-          </p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+          <p>This message was sent from the contact form on your website.</p>
         </div>
       </div>
-    `
-  };
+    `;
 
-  return await emailService.sendNotification(adminEmail, mailOptions.subject, 
-    `New contact form submission from ${name} (${email}). Subject: ${subject}. Message: ${message}`, 
-    mailOptions.html
-  );
-},
-// Send automatic warning email
-sendUserWarning: async (userEmail, userName, monthlyReports, totalReports) => {
-  const subject = `⚠️ Community Guidelines Warning - ${monthlyReports} Monthly Reports`;
-  const message = `Hello ${userName},\n\nYour account has received ${monthlyReports} reports this month (${totalReports} total reports).\n\nPlease review our community guidelines to ensure your posts comply with our standards. Continued violations may result in account suspension.\n\nBest regards,\nThe Admin Team`;
-  
-  const htmlContent = emailTemplates.userWarning(userName, monthlyReports, totalReports);
+    const plainMessage = `New contact form submission from ${name} (${email}).\nCategory: ${category}\nSubject: ${subject}\nMessage: ${message}`;
 
-  return await emailService.sendNotification(userEmail, subject, message, htmlContent);
-},
-// REPORT DELETED EMAIL FUNCTION
-sendReportDeletedEmail: async (reporterEmail, reporterName, postTitle, reason, reportId) => {
-  const subject = 'Report Deleted - Community Platform';
-  const message = `Hello ${reporterName},\n\nYour report has been deleted by an administrator.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n- Report ID: #${reportId}\n\nIf you believe this was done in error, please contact our support team.\n\nBest regards,\nThe Admin Team`;
-  
-  const htmlContent = emailTemplates.reportDeleted(reporterName, postTitle, reason, reportId);
+    return await emailService.sendNotification(adminEmail, `New Contact Form: ${subject}`, plainMessage, htmlContent);
+  },
 
-  return await emailService.sendNotification(reporterEmail, subject, message, htmlContent);
-},
+  // GENERIC USER WARNING EMAIL (NO REPORT COUNTS)
+  sendUserWarning: async (userEmail, userName) => {
+    const subject = '⚠️ Community Guidelines Warning';
+    const message = `Hello ${userName},\n\nYour account has recently received reports for content that may violate our community guidelines.\n\nPlease review our community guidelines to ensure your posts comply with our standards. Continued violations may result in account suspension.\n\nBest regards,\nThe Admin Team`;
+    
+    const htmlContent = emailTemplates.userWarning(userName);
+
+    return await emailService.sendNotification(userEmail, subject, message, htmlContent);
+  },
+
+  // REPORT DELETED EMAIL FUNCTION
+  sendReportDeletedEmail: async (reporterEmail, reporterName, postTitle, reason, reportId) => {
+    const subject = 'Report Deleted - Community Platform';
+    const message = `Hello ${reporterName},\n\nYour report has been deleted by an administrator.\n\nReport Details:\n- Post: "${postTitle}"\n- Reason: ${reason}\n- Report ID: #${reportId}\n\nIf you believe this was done in error, please contact our support team.\n\nBest regards,\nThe Admin Team`;
+    
+    const htmlContent = emailTemplates.reportDeleted(reporterName, postTitle, reason, reportId);
+
+    return await emailService.sendNotification(reporterEmail, subject, message, htmlContent);
+  },
 };
 
 module.exports = emailService;

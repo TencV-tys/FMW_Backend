@@ -31,4 +31,4 @@ router.delete('/admin/users/:id', authMiddleware, adminMiddleware, deleted);
 router.get('/users/post-stats', authMiddleware, getUserPostStats);
 router.put('/users/:id/status', authMiddleware, adminMiddleware, updateUserStatus);
 
-module.exports = router;  
+module.exports = router;   

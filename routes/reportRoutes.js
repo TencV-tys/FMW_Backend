@@ -16,4 +16,4 @@ router.get('/reports/my-reports', authMiddleware, reportController.getUserReport
 router.delete('/reports/my-reports/:id', authMiddleware, reportController.deleteUserReport);
 router.put('/reports/my-reports/:id', authMiddleware, reportController.updateUserReport); 
 
-module.exports = router;     
+module.exports = router;      

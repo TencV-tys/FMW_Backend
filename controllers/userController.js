@@ -546,7 +546,7 @@ const getUsersWithReportStats = async (req, res) => {
 // 🆕 SEND AUTOMATIC WARNING TO USER (Email + Notification)
 const sendUserWarning = async (req, res) => {
   try {
-    const { userId, monthlyReports, totalReports } = req.body;
+    const { userId } = req.body; // 🆕 Only need userId now
 
     const user = await db('users')
       .where('id', userId)
@@ -560,24 +560,21 @@ const sendUserWarning = async (req, res) => {
       });
     }
 
-    // Send warning email
+    // 🆕 UPDATED: Send generic warning without specific numbers
     await emailService.sendUserWarning(
       user.email,
-      `${user.first_name} ${user.last_name}`,
-      monthlyReports,
-      totalReports
+      `${user.first_name} ${user.last_name}`
     );
 
-    // 🆕 CREATE IN-APP NOTIFICATION FOR USER
+    // 🆕 CREATE IN-APP NOTIFICATION FOR USER (also generic)
     const notificationData = {
       user_id: user.id,
       title: '⚠️ Community Guidelines Warning',
-      message: `Your account has received ${monthlyReports} reports this month. Please review our community guidelines.`,
+      message: `Your account has received reports for content violations. Please review our community guidelines.`, // 🆕 Generic message
       type: 'user_warning',
       metadata: JSON.stringify({
-        monthly_reports: monthlyReports,
-        total_reports: totalReports,
         warning_date: new Date().toISOString()
+        // 🆕 REMOVED: report counts from metadata
       }),
       is_read: false,
       created_at: new Date()
@@ -587,7 +584,7 @@ const sendUserWarning = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Warning sent to user successfully'
+      message: 'Generic warning sent to user successfully'
     });
   } catch (error) {
     console.error('Send user warning error:', error);
@@ -597,6 +594,7 @@ const sendUserWarning = async (req, res) => {
     });
   }
 };
+
 // 🆕 ADD: Restore deleted user
 const restoreUser = async (req, res) => {
   try {
@@ -686,4 +684,4 @@ module.exports = {
   sendUserWarning,
   restoreUser,
   
-};
+}; 

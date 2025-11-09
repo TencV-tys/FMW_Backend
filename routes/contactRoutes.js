@@ -47,7 +47,7 @@ router.post('/contact', async (req, res) => {
         `New contact form submission:\n\nName: ${name}\nEmail: ${email}\nCategory: ${category}\nSubject: ${subject}\nMessage: ${message}\n\nSubmitted: ${new Date().toLocaleString()}`,
         `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-            <div style="text-align: center; margin-bottom: 20px; background: #FF8904; color: white; padding: 20px; border-radius: 8px;">
+            <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
               <h1 style="margin: 0;">New Contact Form Submission</h1>
             </div>
             
@@ -70,7 +70,7 @@ router.post('/contact', async (req, res) => {
             </div>
 
             <div style="text-align: center; margin: 25px 0;">
-              <a href="mailto:${email}" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              <a href="mailto:${email}" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                 Reply to ${name}
               </a>
             </div>
@@ -89,8 +89,8 @@ router.post('/contact', async (req, res) => {
       'We Received Your Message - Community Platform',
       `Hello ${name},\n\nThank you for contacting us! We've received your message and our team will get back to you within 24-48 hours.\n\nMessage Summary:\n- Subject: ${subject}\n- Category: ${category}\n- Submitted: ${new Date().toLocaleString()}\n\nIf you need immediate assistance, please call us at +1 (555) 123-4567.\n\nBest regards,\nThe Community Platform Team`,
       `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="text-align: center; background: #10b981; color: white; padding: 30px; border-radius: 8px;">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
+          <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
             <h1 style="margin: 0;">Thank You for Contacting Us!</h1>
           </div>
           
@@ -99,7 +99,7 @@ router.post('/contact', async (req, res) => {
             
             <p>We've received your message and our team will get back to you within 24-48 hours.</p>
             
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
               <h3 style="margin: 0 0 10px 0; color: #333;">Message Summary</h3>
               <p style="margin: 5px 0;"><strong>Subject:</strong> ${subject}</p>
               <p style="margin: 5px 0;"><strong>Category:</strong> ${category}</p>
@@ -111,7 +111,7 @@ router.post('/contact', async (req, res) => {
             <p>We appreciate you reaching out and will respond as soon as possible.</p>
           </div>
           
-          <div style="border-top: 1px solid #e5e5e5; padding-top: 20px; text-align: center; color: #666;">
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
             <p>Best regards,<br>The Community Platform Team</p>
             <p style="margin-top: 10px; font-size: 12px;">
               This is an automated confirmation. Please do not reply to this email.
@@ -254,7 +254,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
         `User ${user.first_name} ${user.last_name} (${user.email}) has submitted a deletion request.\n\nReason: ${reason}\nRequest ID: #${deletionRequest.id}\n\nPlease review this request in the admin panel.`,
         `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-            <div style="text-align: center; margin-bottom: 20px; background: #FF8904; color: white; padding: 20px; border-radius: 8px;">
+            <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
               <h1 style="margin: 0;">New Deletion Request</h1>
             </div>
             
@@ -272,7 +272,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
             <p>Please review this request in the admin panel and take appropriate action.</p>
             
             <div style="text-align: center; margin: 25px 0;">
-              <a href="http://localhost:5173/admin/deletion-requests" style="background: #FF8904; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              <a href="http://localhost:5173/admin/deletion-requests" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                 Review Request
               </a>
             </div>
@@ -292,7 +292,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       `Hello ${user.first_name},\n\nYour deletion request has been submitted successfully.\n\nRequest Details:\n- Request ID: #${deletionRequest.id}\n- Reason: ${reason}\n- Status: Under Review\n\nWe will review your request and notify you once it's processed.\n\nThank you for your patience.`,
       `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-          <div style="text-align: center; margin-bottom: 20px; background: #10b981; color: white; padding: 20px; border-radius: 8px;">
+          <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
             <h1 style="margin: 0;">Deletion Request Submitted</h1>
           </div>
           
@@ -337,7 +337,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       success: false,
       error: 'Server error sending request: ' + error.message
     });
-  }
+  } 
 });
 
 module.exports = router;
