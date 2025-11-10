@@ -17,4 +17,4 @@ router.get('/admin/feedback/:id', authMiddleware, adminMiddleware, feedbackContr
 router.put('/admin/feedback/:id/status', authMiddleware, adminMiddleware, feedbackController.updateFeedbackStatus);
 router.delete('/admin/feedback/:id', authMiddleware, adminMiddleware, feedbackController.deleteFeedback);
 
-module.exports = router; 
+module.exports = router;  
