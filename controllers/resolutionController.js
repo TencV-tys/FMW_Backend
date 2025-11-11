@@ -73,6 +73,22 @@ const resolutionController = {
         status: 'pending'
       });
 
+      // Get the complete request data with user and post info
+      const newRequest = await db('resolution_requests as rr')
+        .join('posts as p', 'rr.post_id', 'p.id')
+        .join('users as u', 'rr.user_id', 'u.id')
+        .select(
+          'rr.*',
+          'p.title as post_title',
+          'p.type as post_type',
+          'p.description as post_description',
+          'u.first_name',
+          'u.last_name',
+          'u.email'
+        )
+        .where('rr.id', requestId)
+        .first();
+
       // 🆕 NOTIFY USER about submission (in-app notification)
       const userNotification = {
         user_id: req.user.id,
@@ -123,8 +139,8 @@ const resolutionController = {
         );
       }
 
-      // Notify all admins (BOTH in-app AND email)
-      await resolutionController._notifyAdminsAboutResolutionRequest(requestId, post, req.user);
+      // 🆕 ENHANCED: Notify all admins with complete request details
+      await resolutionController._notifyAdminsAboutResolutionRequest(newRequest);
 
       res.json({
         success: true,
@@ -154,17 +170,26 @@ const resolutionController = {
           'p.type as post_type',
           'p.description as post_description',
           'p.photo as post_photo',
+          'p.created_at as post_created_at',
           'u.first_name',
           'u.last_name',
           'u.email',
+          'u.phone',
           'c.name as category_name'
         )
         .where('rr.status', 'pending')
         .orderBy('rr.created_at', 'desc');
 
+      // 🆕 ADD: Count total pending requests for admin dashboard
+      const pendingCount = await db('resolution_requests')
+        .where('status', 'pending')
+        .count('id as count')
+        .first();
+
       res.json({
         success: true,
-        requests
+        requests,
+        pendingCount: pendingCount.count || 0
       });
     } catch (error) {
       console.error('Get pending resolution requests error:', error);
@@ -349,61 +374,118 @@ const resolutionController = {
     }
   },
 
-  // Notify admins about new resolution request (BOTH in-app AND email)
-  _notifyAdminsAboutResolutionRequest: async (requestId, post, user) => {
+  // 🆕 ENHANCED: Notify admins about new resolution request with detailed information
+  _notifyAdminsAboutResolutionRequest: async (request) => {
     try {
       const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
       const currentTime = new Date();
       const notificationsToInsert = [];
 
       for (const admin of adminUsers) {
-        // In-app notification
+        // 🆕 ENHANCED: More detailed in-app notification
         const notificationData = {
           user_id: admin.id,
-          title: 'New Resolution Request',
-          message: `User ${user.first_name} ${user.last_name} submitted a resolution request for post "${post.title}"`,
+          title: '🆕 New Resolution Request Submitted',
+          message: `User ${request.first_name} ${request.last_name} submitted a resolution request for "${request.post_title}". Action required.`,
           type: 'resolution_request_pending',
           metadata: JSON.stringify({
-            request_id: requestId,
-            post_id: post.id,
-            post_title: post.title,
-            user_id: user.id,
-            user_name: `${user.first_name} ${user.last_name}`,
-            submitted_at: currentTime
+            request_id: request.id,
+            post_id: request.post_id,
+            post_title: request.post_title,
+            post_type: request.post_type,
+            user_id: request.user_id,
+            user_name: `${request.first_name} ${request.last_name}`,
+            user_email: request.email,
+            resolution_description: request.resolution_description,
+            verification_details: request.verification_details,
+            submitted_at: currentTime,
+            priority: 'high'
           }),
           is_read: false,
           created_at: currentTime
         };
         notificationsToInsert.push(notificationData);
 
-        // 🆕 EMAIL notification to admin
+        // 🆕 ENHANCED: More detailed email notification to admin
         if (emailService && emailService.sendNotification) {
           await emailService.sendNotification(
             admin.email,
-            'New Resolution Request - Action Required',
-            `User ${user.first_name} ${user.last_name} (${user.email}) has submitted a resolution request for post "${post.title}".\n\nPlease review it in the admin panel.`,
+            '🚨 New Resolution Request Requires Your Attention',
             `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
-                <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 20px; border-radius: 8px;">
-                  <h1 style="margin: 0;">New Resolution Request</h1>
-                </div>
-                
-                <p>A new resolution request requires your attention.</p>
-                
-                <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
-                  <h3 style="margin: 0 0 10px 0; color: #333;">Request Details:</h3>
-                  <p style="margin: 5px 0;"><strong>User:</strong> ${user.first_name} ${user.last_name}</p>
-                  <p style="margin: 5px 0;"><strong>Email:</strong> ${user.email}</p>
-                  <p style="margin: 5px 0;"><strong>Post:</strong> ${post.title}</p>
-                  <p style="margin: 5px 0;"><strong>Submitted:</strong> ${currentTime.toLocaleString()}</p>
-                </div>
-                
-                <div style="text-align: center; margin: 25px 0;">
-                  <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/resolution-requests" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                    Review Request
-                  </a>
-                </div>
+NEW RESOLUTION REQUEST SUBMITTED
+
+User: ${request.first_name} ${request.last_name} (${request.email})
+Post: "${request.post_title}"
+Type: ${request.post_type}
+Submitted: ${currentTime.toLocaleString()}
+
+Resolution Description:
+${request.resolution_description}
+
+${request.verification_details ? `Verification Details: ${request.verification_details}` : ''}
+
+Please review this request in the admin panel as soon as possible.
+
+Thank you,
+Community Platform Team
+            `,
+            `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff;">
+              <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 20px; border-radius: 8px;">
+                <h1 style="margin: 0;">🚨 New Resolution Request</h1>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Action Required - Pending Admin Review</p>
               </div>
+              
+              <div style="background: #fffbeb; border: 1px solid #f59e0b; border-radius: 6px; padding: 15px; margin: 15px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #92400e;">📋 Request Summary</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;"><strong>👤 User:</strong></td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;">${request.first_name} ${request.last_name}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;"><strong>📧 Email:</strong></td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;">${request.email}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;"><strong>📝 Post Title:</strong></td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;">${request.post_title}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;"><strong>📂 Post Type:</strong></td>
+                    <td style="padding: 8px 0; border-bottom: 1px solid #fed7aa;">${request.post_type}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0;"><strong>⏰ Submitted:</strong></td>
+                    <td style="padding: 8px 0;">${currentTime.toLocaleString()}</td>
+                  </tr>
+                </table>
+              </div>
+
+              <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #333;">📄 Resolution Description</h3>
+                <p style="margin: 0; white-space: pre-wrap;">${request.resolution_description}</p>
+              </div>
+
+              ${request.verification_details ? `
+              <div style="background-color: #f0f9ff; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                <h3 style="margin: 0 0 10px 0; color: #0369a1;">🔍 Verification Details</h3>
+                <p style="margin: 0; white-space: pre-wrap;">${request.verification_details}</p>
+              </div>
+              ` : ''}
+
+              <div style="text-align: center; margin: 25px 0;">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/resolution-requests" 
+                   style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; font-size: 16px;">
+                  🔍 Review Resolution Request
+                </a>
+              </div>
+
+              <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e5e5; text-align: center; color: #6b7280;">
+                <p style="margin: 0;">This is an automated notification. Please do not reply to this email.</p>
+                <p style="margin: 5px 0 0 0;">Best regards,<br><strong>The Community Platform Team</strong></p>
+              </div>
+            </div>
             `
           );
         }
@@ -413,7 +495,7 @@ const resolutionController = {
         await db('notifications').insert(notificationsToInsert);
       }
 
-      console.log(`✅ Notified ${adminUsers.length} admins about resolution request ${requestId}`);
+      console.log(`✅ Notified ${adminUsers.length} admins about NEW resolution request ${request.id}`);
     } catch (error) {
       console.error('Error notifying admins about resolution request:', error);
     }
