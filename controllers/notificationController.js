@@ -112,7 +112,7 @@ const notificationController = {
         error: 'Server error deleting notification'
       });
     }
-  },
+  }, 
   // Delete all user notifications
 deleteAllNotifications: async (req, res) => {
   try {

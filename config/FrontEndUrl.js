@@ -11,6 +11,8 @@ const getFrontendUrl = () => {
             return 'http://10.129.103.2:5173';
           } else if (config.address.includes('192.168.')) {
             return 'http://192.168.1.27:5173';
+          } else if (config.address.includes('10.85.')) {
+            return 'http://10.85.180.2:5173';
           }
         }
       }
