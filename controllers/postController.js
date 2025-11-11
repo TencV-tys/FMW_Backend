@@ -149,68 +149,6 @@ updatePost: async (req, res) => {
     });
   }
 },
-
-  // Update post status - WITH ADMIN NOTIFICATION FOR RESOLVED POSTS
-  updatePostStatus: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { status } = req.body;
-      const userId = req.user.id;
-
-      // Validate status
-      const validStatuses = ['Active', 'Resolved', 'Removed'];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid status. Must be one of: Active, Resolved, Removed'
-        });
-      }
-
-      // First, check if post exists and belongs to user
-      const existingPost = await Post.getById(id);
-      
-      if (!existingPost) {
-        return res.status(404).json({
-          success: false,
-          error: 'Post not found'
-        });
-      }
-
-      if (existingPost.user_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          error: 'Access denied. You can only update your own posts.'
-        });
-      }
-
-      // Update post status
-      const updated = await Post.update(id, {
-        status: status,
-        updated_at: new Date()
-      });
-
-      if (updated) {
-        // Notify admins when user marks post as resolved
-        if (status === 'Resolved') {
-          await postController._notifyAdminsPostResolved(id, existingPost, req.user);
-        }
-
-        res.json({
-          success: true,
-          message: `Post status updated to ${status} successfully!`
-        });
-      } else {
-        throw new Error('Failed to update post status');
-      }
-    } catch (error) {
-      console.error('Update post status error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error updating post status'
-      });
-    }
-  },
-
   // Delete post - WITH MONTHLY LIMIT CHECK AND USER NOTIFICATION
   deletePost: async (req, res) => {
     try {

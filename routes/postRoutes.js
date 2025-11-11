@@ -19,8 +19,7 @@ router.get('/posts/my-posts', authMiddleware, postController.getMyPosts);
 // 🎯 FIX: Get user deletion statistics - MUST COME BEFORE :id routes!
 router.get('/posts/my-deletion-stats', authMiddleware, postController.getUserDeletionStats);
 
-// Update post status (mark as resolved)
-router.put('/posts/:id/status', authMiddleware, postController.updatePostStatus);
+ 
 
 // Delete post permanently
 router.delete('/posts/:id', authMiddleware, postController.deletePost);

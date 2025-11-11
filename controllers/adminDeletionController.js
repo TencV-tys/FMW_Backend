@@ -126,7 +126,7 @@ const adminDeletionController = {
   processDeletionRequest: async (req, res) => {
     const transaction = await db.transaction();
     
-    try {
+    try { 
       const { requestId } = req.params;
       const { action, admin_notes } = req.body;
       const adminUser = req.user;
@@ -290,12 +290,12 @@ const adminDeletionController = {
             </div>
           </div>
         `
-        : `
+        : ` 
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
             <div style="text-align: center; margin-bottom: 20px; background: #ef4444; color: white; padding: 20px; border-radius: 8px;">
               <h1 style="margin: 0;">Deletion Request Rejected</h1>
             </div>
-            
+             
             <p>Hello <strong>${deletionRequest.first_name}</strong>,</p>
             
             <p>Your deletion request has been reviewed and unfortunately could not be approved at this time.</p>
@@ -338,6 +338,7 @@ const adminDeletionController = {
       });
     }
   },
+ 
 };
 
 module.exports = adminDeletionController;
