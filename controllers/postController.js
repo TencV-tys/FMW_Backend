@@ -6,7 +6,7 @@ const db = require('../config/db');
 
 const postController = {
 
-  createPost: async (req, res) => {
+   createPost: async (req, res) => {
     try {
       const { title, description, type, category_id, barangay_id, purok_id, color, contact_info } = req.body;
 
@@ -17,7 +17,7 @@ const postController = {
           error: 'All required fields must be filled'
         });
       }
-
+ 
       const postData = {
         user_id: req.user.id,
         title,

@@ -42,7 +42,7 @@ app.use('/api', adminNotificationRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api', reportRoutes);
 app.use('/api', feedbackRoutes);
-app.use('/api', contactRoutes);
+app.use('/api', contactRoutes); 
 app.use('/api', adminDeletionRoutes);
 app.use('/api', resolutionRoutes);
 

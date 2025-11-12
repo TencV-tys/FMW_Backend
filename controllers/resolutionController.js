@@ -16,7 +16,21 @@ const resolutionController = {
           error: 'Resolution description is required'
         });
       }
+         // 🆕 ADD: File upload error handling
+    if (req.fileValidationError) {
+      return res.status(400).json({
+        success: false,
+        error: req.fileValidationError
+      });
+    }
 
+    // 🆕 ADD: File size validation
+    if (req.file && req.file.size > 5 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        error: 'File too large. Maximum 5MB allowed.'
+      });
+    }
       // Check if post exists and belongs to user
       const post = await db('posts')
         .where('id', id)
@@ -135,7 +149,7 @@ const resolutionController = {
                 <p>Best regards,<br>The Community Platform Team</p>
               </div>
             </div>
-          `
+          ` 
         );
       }
 
@@ -158,127 +172,123 @@ const resolutionController = {
   },
 
   // Admin gets all pending resolution requests
-  getPendingResolutionRequests: async (req, res) => {
-    try {
-      const requests = await db('resolution_requests as rr')
-        .join('posts as p', 'rr.post_id', 'p.id')
-        .join('users as u', 'rr.user_id', 'u.id')
-        .join('categories as c', 'p.category_id', 'c.id')
-        .select(
-          'rr.*',
-          'p.title as post_title',
-          'p.type as post_type',
-          'p.description as post_description',
-          'p.photo as post_photo',
-          'p.created_at as post_created_at',
-          'u.first_name',
-          'u.last_name',
-          'u.email',
-          'u.phone',
-          'c.name as category_name'
-        )
-        .where('rr.status', 'pending')
-        .orderBy('rr.created_at', 'desc');
+getPendingResolutionRequests: async (req, res) => {
+  try {
+    const requests = await db('resolution_requests as rr')
+      .join('posts as p', 'rr.post_id', 'p.id')
+      .join('users as u', 'rr.user_id', 'u.id')
+      .join('categories as c', 'p.category_id', 'c.id')
+      .select(
+        'rr.*',
+        'p.title as post_title',
+        'p.type as post_type',
+        'p.description as post_description',
+        'p.photo as post_photo',
+        'p.created_at as post_created_at',
+        'u.first_name',
+        'u.last_name',
+        'u.email',
+        // 'u.phone', // REMOVED - this was causing the error
+        'c.name as category_name'
+      )
+      .where('rr.status', 'pending')
+      .orderBy('rr.created_at', 'desc');
 
-      // 🆕 ADD: Count total pending requests for admin dashboard
-      const pendingCount = await db('resolution_requests')
-        .where('status', 'pending')
-        .count('id as count')
-        .first();
+    // Count total pending requests
+    const pendingCount = await db('resolution_requests')
+      .where('status', 'pending')
+      .count('id as count')
+      .first();
 
-      res.json({
-        success: true,
-        requests,
-        pendingCount: pendingCount.count || 0
-      });
-    } catch (error) {
-      console.error('Get pending resolution requests error:', error);
-      res.status(500).json({
+    res.json({ 
+      success: true,
+      requests,
+      pendingCount: pendingCount.count || 0
+    });
+  } catch (error) {
+    console.error('Get pending resolution requests error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error fetching resolution requests'
+    });
+  }
+},
+
+// Admin approves resolution request
+approveResolutionRequest: async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { admin_notes } = req.body || {};
+
+    const request = await db('resolution_requests as rr')
+      .join('posts as p', 'rr.post_id', 'p.id')
+      .join('users as u', 'rr.user_id', 'u.id')
+      .select('rr.*', 'p.title as post_title', 'u.first_name', 'u.last_name', 'u.email')
+      .where('rr.id', requestId)
+      .first();
+
+    if (!request) {
+      return res.status(404).json({
         success: false,
-        error: 'Server error fetching resolution requests'
+        error: 'Resolution request not found'
       });
     }
-  },
 
-  // Admin approves resolution request
-  approveResolutionRequest: async (req, res) => {
-    try {
-      const { requestId } = req.params;
-      const { admin_notes } = req.body || {};
-
-      const request = await db('resolution_requests as rr')
-        .join('posts as p', 'rr.post_id', 'p.id')
-        .join('users as u', 'rr.user_id', 'u.id')
-        .select('rr.*', 'p.title as post_title', 'u.first_name', 'u.last_name', 'u.email')
-        .where('rr.id', requestId)
-        .first();
-
-      if (!request) {
-        return res.status(404).json({
-          success: false,
-          error: 'Resolution request not found'
-        });
-      }
-
-      // Update resolution request status
-      await db('resolution_requests')
-        .where('id', requestId)
-        .update({
-          status: 'approved',
-          admin_notes: admin_notes || null,
-          updated_at: new Date()
-        });
-
-      // Update post status to resolved and add resolution details
-      await db('posts')
-        .where('id', request.post_id)
-        .update({
-          status: 'Resolved',
-          resolution_description: request.resolution_description,
-          resolution_photo: request.resolution_photo,
-          verification_details: request.verification_details,
-          resolved_at: new Date(),
-          updated_at: new Date()
-        });
-
-      // 🆕 CREATE ADMIN NOTIFICATION for approval action
-      const adminNotification = {
-        user_id: req.user.id,
-        title: 'Resolution Request Approved',
-        message: `You approved the resolution request for post "${request.post_title}" from ${request.first_name} ${request.last_name}`,
-        type: 'resolution_approved_admin',
-        metadata: JSON.stringify({
-          request_id: requestId,
-          post_id: request.post_id,
-          post_title: request.post_title,
-          user_id: request.user_id,
-          user_name: `${request.first_name} ${request.last_name}`,
-          approved_by: req.user.id,
-          approved_by_name: `${req.user.first_name} ${req.user.last_name}`,
-          approved_at: new Date()
-        }),
-        is_read: false,
-        created_at: new Date()
-      };
-      await db('notifications').insert(adminNotification);
-
-      // Notify user about approval (BOTH in-app AND email)
-      await resolutionController._notifyUserAboutResolutionApproval(request, req.user);
-
-      res.json({
-        success: true,
-        message: 'Resolution request approved! Post marked as resolved.'
+    // Update resolution request status
+    await db('resolution_requests')
+      .where('id', requestId)
+      .update({
+        status: 'approved',
+        admin_notes: admin_notes || null,
+        updated_at: new Date()
       });
 
-    } catch (error) {
-      console.error('Approve resolution request error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Server error approving resolution request'
+    // 🆕 FIXED: Only update post status to resolved (remove ALL non-existent fields)
+    await db('posts')
+      .where('id', request.post_id)
+      .update({
+        status: 'Resolved',
+        updated_at: new Date()
+        // REMOVED: resolved_at, resolution_description, resolution_photo, verification_details
       });
-    }
-  },
 
+    // 🆕 CREATE ADMIN NOTIFICATION for approval action
+    const adminNotification = {
+      user_id: req.user.id,
+      title: 'Resolution Request Approved',
+      message: `You approved the resolution request for post "${request.post_title}" from ${request.first_name} ${request.last_name}`,
+      type: 'resolution_approved_admin',
+      metadata: JSON.stringify({
+        request_id: requestId,
+        post_id: request.post_id,
+        post_title: request.post_title,
+        user_id: request.user_id,
+        user_name: `${request.first_name} ${request.last_name}`,
+        approved_by: req.user.id,
+        approved_by_name: `${req.user.first_name} ${req.user.last_name}`,
+        approved_at: new Date()
+      }),
+      is_read: false,
+      created_at: new Date()
+    };
+    await db('notifications').insert(adminNotification);
+
+    // Notify user about approval (BOTH in-app AND email)
+    await resolutionController._notifyUserAboutResolutionApproval(request, req.user);
+
+    res.json({
+      success: true,
+      message: 'Resolution request approved! Post marked as resolved.'
+    });
+
+  } catch (error) {
+    console.error('Approve resolution request error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error approving resolution request'
+    });
+  }
+},
   // Admin rejects resolution request
   rejectResolutionRequest: async (req, res) => {
     try {

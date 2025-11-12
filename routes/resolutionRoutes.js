@@ -13,5 +13,5 @@ router.get('/user/resolution-requests', authMiddleware, resolutionController.get
 router.get('/admin/resolution-requests/pending', authMiddleware, adminMiddleware, resolutionController.getPendingResolutionRequests);
 router.put('/admin/resolution-requests/:requestId/approve', authMiddleware, adminMiddleware, resolutionController.approveResolutionRequest);
 router.put('/admin/resolution-requests/:requestId/reject', authMiddleware, adminMiddleware, resolutionController.rejectResolutionRequest);
- 
+
 module.exports = router;
