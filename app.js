@@ -37,7 +37,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/auth', authRoutes);
 app.use('/api', userRoutes);
 app.use('/api', postRoutes);
-app.use('/api', adminRoutes);
+app.use('/api', adminRoutes); 
 app.use('/api', adminNotificationRoutes);
 app.use('/api', notificationRoutes);
 app.use('/api', reportRoutes);

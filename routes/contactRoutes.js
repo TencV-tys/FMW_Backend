@@ -1,60 +1,139 @@
- // routes/contactRoutes.js - UPDATED with duplicate request prevention
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const emailService = require('../services/emailService');
 const { authMiddleware } = require('../middleware/authMiddleware');
+const rateLimit = require('express-rate-limit');
 
-// Input validation middleware
+// Rate limiting to prevent spam
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    error: 'Too many contact form submissions, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Input sanitization function
+const sanitizeInput = (input) => {
+  if (typeof input !== 'string') return '';
+  
+  return input
+    .trim()
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    .substring(0, 5000);
+};
+
+// Enhanced input validation middleware
 const validateContactInput = (req, res, next) => {
   const { name, email, subject, message, category } = req.body;
-  
-  if (!name?.trim() || !email?.trim() || !subject?.trim() || !message?.trim()) {
+
+  // Check if fields exist and are strings
+  if (typeof name !== 'string' || typeof email !== 'string' || 
+      typeof subject !== 'string' || typeof message !== 'string') {
     return res.status(400).json({
       success: false,
-      error: 'All fields are required'
+      error: 'Invalid data types'
+    });
+  }
+
+  // Trim and sanitize ALL inputs
+  const sanitizedName = sanitizeInput(name);
+  const sanitizedEmail = sanitizeInput(email);
+  const sanitizedSubject = sanitizeInput(subject);
+  const sanitizedMessage = sanitizeInput(message);
+  const sanitizedCategory = ['general', 'technical', 'account', 'report', 'suggestion', 'partnership']
+    .includes(category) ? category : 'general';
+
+  // Check if fields are not empty after sanitization
+  if (!sanitizedName || !sanitizedEmail || !sanitizedSubject || !sanitizedMessage) {
+    return res.status(400).json({
+      success: false,
+      error: 'All fields are required and cannot be empty'
     });
   }
 
   // Enhanced email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email.trim())) {
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+  if (!emailRegex.test(sanitizedEmail)) {
     return res.status(400).json({
       success: false,
       error: 'Please provide a valid email address'
     });
   }
 
+  // Validate name length
+  if (sanitizedName.length < 2 || sanitizedName.length > 100) {
+    return res.status(400).json({
+      success: false,
+      error: 'Name must be between 2 and 100 characters'
+    });
+  }
+
+  // Validate subject length
+  if (sanitizedSubject.length < 5 || sanitizedSubject.length > 200) {
+    return res.status(400).json({
+      success: false,
+      error: 'Subject must be between 5 and 200 characters'
+    });
+  }
+
   // Validate message length
-  if (message.trim().length < 10) {
+  if (sanitizedMessage.length < 10) {
     return res.status(400).json({
       success: false,
       error: 'Message must be at least 10 characters long'
     });
   }
 
-  if (message.trim().length > 2000) {
+  if (sanitizedMessage.length > 2000) {
     return res.status(400).json({
       success: false,
       error: 'Message must not exceed 2000 characters'
     });
   }
 
+  // Add validated and SANITIZED data to request
+  req.validatedData = {
+    name: sanitizedName,
+    email: sanitizedEmail.toLowerCase(),
+    subject: sanitizedSubject,
+    message: sanitizedMessage,
+    category: sanitizedCategory
+  };
+
   next();
 };
 
-// GENERAL CONTACT FORM (No authentication required)
-router.post('/contact', validateContactInput, async (req, res) => {
+// SECURE CONTACT FORM with rate limiting
+router.post('/contact', contactLimiter, validateContactInput, async (req, res) => {
   const trx = await db.transaction();
   
   try {
-    const { name, email, subject, message, category } = req.body;
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    const trimmedSubject = subject.trim();
-    const trimmedMessage = message.trim();
+    const { name, email, subject, message, category } = req.validatedData;
 
-    // Get admin emails using Knex
+    // Check for duplicate submissions from same IP in last 5 minutes
+    const recentSubmission = await trx('contact_submissions')
+      .where('ip_address', req.ip)
+      .where('created_at', '>', db.raw('DATE_SUB(NOW(), INTERVAL 5 MINUTE)'))
+      .first();
+
+    if (recentSubmission) {
+      await trx.rollback();
+      return res.status(429).json({
+        success: false,
+        error: 'Please wait before submitting another message'
+      });
+    }
+
+    // Get admin emails securely
     const admins = await trx('users')
       .where('role', 'admin')
       .where('status', 'active')
@@ -62,20 +141,19 @@ router.post('/contact', validateContactInput, async (req, res) => {
 
     const adminEmails = admins.map(admin => admin.email);
 
-    // If no active admins found, use default admin email
     if (adminEmails.length === 0) {
       adminEmails.push(process.env.ADMIN_EMAIL || process.env.EMAIL_USER);
     }
 
     // Save contact form submission to database
     const [submissionId] = await trx('contact_submissions').insert({
-      name: trimmedName,
-      email: trimmedEmail,
-      subject: trimmedSubject,
-      message: trimmedMessage,
-      category: category || 'general',
-      ip_address: req.ip,
-      user_agent: req.get('User-Agent'),
+      name: name,
+      email: email,
+      subject: subject,
+      message: message,
+      category: category,
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('User-Agent') || 'Unknown',
       created_at: new Date()
     });
 
@@ -83,8 +161,8 @@ router.post('/contact', validateContactInput, async (req, res) => {
     const adminEmailPromises = adminEmails.map(adminEmail => 
       emailService.sendNotification(
         adminEmail,
-        `New Contact Form: ${trimmedSubject}`,
-        `New contact form submission:\n\nName: ${trimmedName}\nEmail: ${trimmedEmail}\nCategory: ${category}\nSubject: ${trimmedSubject}\nMessage: ${trimmedMessage}\n\nSubmitted: ${new Date().toLocaleString()}`,
+        `New Contact Form: ${subject}`,
+        `New contact form submission:\n\nName: ${name}\nEmail: ${email}\nCategory: ${category}\nSubject: ${subject}\nMessage: ${message}\n\nSubmitted: ${new Date().toLocaleString()}\nIP: ${req.ip}`,
         `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
             <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
@@ -95,24 +173,25 @@ router.post('/contact', validateContactInput, async (req, res) => {
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
               <h3 style="margin: 0 0 10px 0; color: #333;">Contact Details:</h3>
-              <p style="margin: 5px 0;"><strong>Name:</strong> ${trimmedName}</p>
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${name}</p>
               <p style="margin: 5px 0;"><strong>Email:</strong> 
-                <a href="mailto:${trimmedEmail}" style="color: #FF8904;">${trimmedEmail}</a>
+                <a href="mailto:${email}" style="color: #FF8904;">${email}</a>
               </p>
               <p style="margin: 5px 0;"><strong>Category:</strong> ${category}</p>
-              <p style="margin: 5px 0;"><strong>Subject:</strong> ${trimmedSubject}</p>
+              <p style="margin: 5px 0;"><strong>Subject:</strong> ${subject}</p>
+              <p style="margin: 5px 0;"><strong>IP Address:</strong> ${req.ip}</p>
               <p style="margin: 5px 0;"><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
               <p style="margin: 5px 0;"><strong>Submission ID:</strong> #${submissionId}</p>
             </div>
 
             <div style="background-color: white; border: 1px solid #e5e5e5; padding: 15px; border-radius: 6px; margin: 15px 0;">
               <h3 style="margin: 0 0 10px 0; color: #333;">Message:</h3>
-              <p style="margin: 0; line-height: 1.6; white-space: pre-wrap;">${trimmedMessage}</p>
+              <p style="margin: 0; line-height: 1.6;">${message}</p>
             </div>
 
             <div style="text-align: center; margin: 25px 0;">
-              <a href="mailto:${trimmedEmail}" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                Reply to ${trimmedName}
+              <a href="mailto:${email}" style="background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                Reply to ${name}
               </a>
             </div>
             
@@ -126,9 +205,9 @@ router.post('/contact', validateContactInput, async (req, res) => {
 
     // SEND CONFIRMATION EMAIL TO USER
     const userConfirmationEmail = emailService.sendNotification(
-      trimmedEmail,
+      email,
       'We Received Your Message - Community Platform',
-      `Hello ${trimmedName},\n\nThank you for contacting us! We've received your message and our team will get back to you within 24-48 hours.\n\nMessage Summary:\n- Subject: ${trimmedSubject}\n- Category: ${category}\n- Submitted: ${new Date().toLocaleString()}\n- Submission ID: #${submissionId}\n\nIf you need immediate assistance, please call us at +1 (555) 123-4567.\n\nBest regards,\nThe Community Platform Team`,
+      `Hello ${name},\n\nThank you for contacting us! We've received your message and our team will get back to you within 24-48 hours.\n\nMessage Summary:\n- Subject: ${subject}\n- Category: ${category}\n- Submitted: ${new Date().toLocaleString()}\n- Submission ID: #${submissionId}\n\nIf you need immediate assistance, please call us at +1 (555) 123-4567.\n\nBest regards,\nThe Community Platform Team`,
       `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e5e5; border-radius: 8px;">
           <div style="text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #FF8904 0%, #e57c00 100%); color: white; padding: 20px; border-radius: 8px;">
@@ -136,13 +215,13 @@ router.post('/contact', validateContactInput, async (req, res) => {
           </div>
           
           <div style="padding: 20px 0;">
-            <p>Hello <strong>${trimmedName}</strong>,</p>
+            <p>Hello <strong>${name}</strong>,</p>
             
             <p>We've received your message and our team will get back to you within 24-48 hours.</p>
             
             <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
               <h3 style="margin: 0 0 10px 0; color: #333;">Message Summary</h3>
-              <p style="margin: 5px 0;"><strong>Subject:</strong> ${trimmedSubject}</p>
+              <p style="margin: 5px 0;"><strong>Subject:</strong> ${subject}</p>
               <p style="margin: 5px 0;"><strong>Category:</strong> ${category}</p>
               <p style="margin: 5px 0;"><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
               <p style="margin: 5px 0;"><strong>Reference ID:</strong> #${submissionId}</p>
@@ -167,12 +246,6 @@ router.post('/contact', validateContactInput, async (req, res) => {
 
     // Send all emails
     const emailResults = await Promise.allSettled(adminEmailPromises);
-    
-    // Log email sending results
-    const failedEmails = emailResults.filter(result => result.status === 'rejected');
-    if (failedEmails.length > 0) {
-      console.warn(`${failedEmails.length} emails failed to send`);
-    }
 
     await trx.commit();
 
@@ -180,12 +253,11 @@ router.post('/contact', validateContactInput, async (req, res) => {
       success: true,
       message: 'Message sent successfully! We will get back to you soon.',
       submission_id: submissionId,
-      email_sent: emailResults.length - failedEmails.length > 0
+      email_sent: emailResults.filter(result => result.status === 'fulfilled').length > 0
     });
 
   } catch (error) {
     await trx.rollback();
-    console.error('Contact form error:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to send message. Please try again later.'
@@ -193,9 +265,7 @@ router.post('/contact', validateContactInput, async (req, res) => {
   }
 });
 
-// DELETION REQUEST ROUTE - UPDATED with duplicate request prevention
-
-// DELETION REQUEST ROUTE - ONLY ADD DUPLICATE CHECK
+// DELETION REQUEST ROUTE
 router.post('/contact-admin', authMiddleware, async (req, res) => {
   const trx = await db.transaction();
   
@@ -211,7 +281,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       });
     }
 
-    // 🆕 ONLY ADD THIS: CHECK FOR EXISTING PENDING REQUEST
+    // Check for existing pending request
     if (post_id) {
       const existingRequest = await trx('deletion_requests')
         .where('user_id', userId)
@@ -228,7 +298,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       }
     }
 
-    // Get user info using Knex
+    // Get user info
     const user = await trx('users')
       .where('id', userId)
       .select('first_name', 'last_name', 'email')
@@ -242,7 +312,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       });
     }
 
-    // Create deletion request using Knex (MySQL) - KEEP ORIGINAL
+    // Create deletion request
     const deletionRequestResult = await trx('deletion_requests')
       .insert({
         user_id: userId,
@@ -257,12 +327,12 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       .where('id', requestId)
       .first();
 
-    // Get admins using Knex
+    // Get admins
     const admins = await trx('users')
       .where('role', 'admin')
       .select('id', 'email', 'first_name');
 
-    // Create notifications for all admins using Knex - KEEP ORIGINAL
+    // Create notifications for all admins
     const adminNotifications = admins.map(admin => ({
       user_id: admin.id,
       title: 'New Deletion Request',
@@ -284,7 +354,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
 
     await trx('notifications').insert(adminNotifications);
 
-    // CREATE USER CONFIRMATION NOTIFICATION - KEEP ORIGINAL
+    // Create user confirmation notification
     const userConfirmationNotification = {
       user_id: userId,
       title: 'Deletion Request Submitted',
@@ -302,7 +372,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
 
     await trx('notifications').insert(userConfirmationNotification);
 
-    // SEND EMAIL NOTIFICATIONS TO ADMINS - KEEP ORIGINAL
+    // Send email notifications to admins
     const adminEmails = admins.map(admin => admin.email);
     const emailPromises = adminEmails.map(adminEmail => 
       emailService.sendNotification(
@@ -342,7 +412,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
       )
     );
 
-    // SEND CONFIRMATION EMAIL TO USER - KEEP ORIGINAL
+    // Send confirmation email to user
     const userConfirmationEmail = emailService.sendNotification(
       user.email,
       'Deletion Request Submitted Successfully',
@@ -389,7 +459,6 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
 
   } catch (error) { 
     await trx.rollback();
-    console.error('Contact admin error:', error);
     res.status(500).json({
       success: false,
       error: 'Server error sending request: ' + error.message
@@ -397,10 +466,7 @@ router.post('/contact-admin', authMiddleware, async (req, res) => {
   } 
 });
 
-
-
-
-// 🆕 ADD: Endpoint to check if user has pending deletion request for a post
+// Endpoint to check if user has pending deletion request for a post
 router.get('/check-pending-deletion/:postId', authMiddleware, async (req, res) => {
   try {
     const { postId } = req.params;
@@ -422,7 +488,6 @@ router.get('/check-pending-deletion/:postId', authMiddleware, async (req, res) =
       } : null
     });
   } catch (error) {
-    console.error('Check pending deletion error:', error);
     res.status(500).json({
       success: false,
       error: 'Server error checking pending request'
