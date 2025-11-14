@@ -10,7 +10,7 @@ const storage = multer.diskStorage({
       cb(null, 'uploads/resolution-proofs/');
     } else {
       cb(null, 'uploads/');
-    }
+    } 
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

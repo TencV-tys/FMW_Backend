@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 const adminNotificationController = {
-  // Get all admin-related notifications - FIXED WITH RESOLUTION TYPES
+  // Get all admin-related notifications - UPDATED WITH NEW_POST
   getAllNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
@@ -12,8 +12,9 @@ const adminNotificationController = {
             .orWhere('users.role', 'admin'); 
         })
         .andWhere(function() {
-          // Only show specific admin notification types (INCLUDES RESOLUTION TYPES)
+          // Only show specific admin notification types (INCLUDES NEW_POST)
           this.where('notifications.type', 'in', [
+            'new_post', // 🆕 ADD: New post notifications
             'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
             'report_submitted',
             'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
@@ -21,9 +22,7 @@ const adminNotificationController = {
             'post_resolved_by_user',
             'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
             'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
-            // 🆕 ADD WARNING TYPES FOR ADMIN AUDIT
             'post_removed_warning', 'post_deleted_warning',
-            // 🆕 ADD RESOLUTION REQUEST TYPES
             'resolution_request_pending', 'resolution_approved_admin', 'resolution_rejected_admin',
             'resolution_request_submitted', 'resolution_request_approved', 'resolution_request_rejected'
           ]);
@@ -50,7 +49,7 @@ const adminNotificationController = {
     }
   },
 
-  // Get unread notifications only - FIXED WITH RESOLUTION TYPES
+  // Get unread notifications only - UPDATED WITH NEW_POST
   getUnreadNotifications: async (req, res) => {
     try {
       const notifications = await db('notifications')
@@ -62,6 +61,7 @@ const adminNotificationController = {
         })
         .andWhere(function() {
           this.where('notifications.type', 'in', [
+            'new_post', // 🆕 ADD: New post notifications
             'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
             'report_submitted',
             'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
@@ -69,7 +69,6 @@ const adminNotificationController = {
             'post_resolved_by_user',
             'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
             'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
-            // 🆕 ADD RESOLUTION REQUEST TYPES
             'resolution_request_pending', 'resolution_approved_admin', 'resolution_rejected_admin',
             'resolution_request_submitted', 'resolution_request_approved', 'resolution_request_rejected'
           ]);
@@ -96,7 +95,7 @@ const adminNotificationController = {
     }
   },
 
-  // Get notifications by type - FIXED WITH RESOLUTION TYPES
+  // Get notifications by type - UPDATED WITH NEW_POST
   getNotificationsByType: async (req, res) => {
     try {
       const { type } = req.params;
@@ -134,7 +133,7 @@ const adminNotificationController = {
     }
   },
 
-  // Get notification statistics for admin - FIXED WITH RESOLUTION TYPES
+  // Get notification statistics for admin - UPDATED WITH NEW_POST
   getNotificationStats: async (req, res) => {
     try { 
       const stats = await db('notifications')
@@ -144,6 +143,7 @@ const adminNotificationController = {
             .orWhere('users.role', 'admin');
         })
         .andWhere('notifications.type', 'in', [
+          'new_post', // 🆕 ADD: New post notifications
           'post_resolved', 'post_removed', 'post_deleted', 'post_restored',
           'report_submitted',
           'user_suspended', 'user_banned', 'user_activated', 'user_deleted',
@@ -151,15 +151,14 @@ const adminNotificationController = {
           'post_resolved_by_user',
           'deletion_request', 'deletion_request_submitted', 'deletion_request_approved', 
           'deletion_request_rejected', 'deletion_reset', 'additional_deletions_granted',
-          // 🆕 ADD WARNING TYPES FOR ADMIN AUDIT
           'post_removed_warning', 'post_deleted_warning',
-          // 🆕 ADD RESOLUTION REQUEST TYPES
           'resolution_request_pending', 'resolution_approved_admin', 'resolution_rejected_admin',
           'resolution_request_submitted', 'resolution_request_approved', 'resolution_request_rejected'
         ])
         .select(
           db.raw('COUNT(*) as total'),
           db.raw('SUM(CASE WHEN is_read = false THEN 1 ELSE 0 END) as unread'),
+          db.raw('SUM(CASE WHEN type = "new_post" THEN 1 ELSE 0 END) as new_post'), // 🆕 ADD: New post count
           db.raw('SUM(CASE WHEN type = "post_resolved" THEN 1 ELSE 0 END) as post_resolved'),
           db.raw('SUM(CASE WHEN type = "post_removed" THEN 1 ELSE 0 END) as post_removed'),
           db.raw('SUM(CASE WHEN type = "post_deleted" THEN 1 ELSE 0 END) as post_deleted'),
@@ -179,7 +178,6 @@ const adminNotificationController = {
           db.raw('SUM(CASE WHEN type = "deletion_request_rejected" THEN 1 ELSE 0 END) as deletion_request_rejected'),
           db.raw('SUM(CASE WHEN type = "deletion_reset" THEN 1 ELSE 0 END) as deletion_reset'),
           db.raw('SUM(CASE WHEN type = "additional_deletions_granted" THEN 1 ELSE 0 END) as additional_deletions_granted'),
-          // 🆕 ADD RESOLUTION REQUEST STATS
           db.raw('SUM(CASE WHEN type = "resolution_request_pending" THEN 1 ELSE 0 END) as resolution_request_pending'),
           db.raw('SUM(CASE WHEN type = "resolution_approved_admin" THEN 1 ELSE 0 END) as resolution_request_approved'),
           db.raw('SUM(CASE WHEN type = "resolution_rejected_admin" THEN 1 ELSE 0 END) as resolution_request_rejected'),
@@ -192,6 +190,7 @@ const adminNotificationController = {
         stats: {
           total: parseInt(stats.total) || 0,
           unread: parseInt(stats.unread) || 0,
+          new_post: parseInt(stats.new_post) || 0, // 🆕 ADD: New post stat
           reports: parseInt(stats.reports) || 0,
           user_suspended: parseInt(stats.user_suspended) || 0,
           user_banned: parseInt(stats.user_banned) || 0,
@@ -207,7 +206,6 @@ const adminNotificationController = {
           deletion_request_rejected: parseInt(stats.deletion_request_rejected) || 0,
           deletion_reset: parseInt(stats.deletion_reset) || 0,
           additional_deletions_granted: parseInt(stats.additional_deletions_granted) || 0,
-          // 🆕 ADD RESOLUTION REQUEST STATS
           resolution_request_pending: parseInt(stats.resolution_request_pending) || 0,
           resolution_request_approved: parseInt(stats.resolution_request_approved) || 0,
           resolution_request_rejected: parseInt(stats.resolution_request_rejected) || 0,

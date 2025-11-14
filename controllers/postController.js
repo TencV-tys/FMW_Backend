@@ -6,7 +6,7 @@ const db = require('../config/db');
 
 const postController = {
 
-   createPost: async (req, res) => {
+  createPost: async (req, res) => {
     try {
       const { title, description, type, category_id, barangay_id, purok_id, color, contact_info } = req.body;
 
@@ -17,7 +17,7 @@ const postController = {
           error: 'All required fields must be filled'
         });
       }
- 
+
       const postData = {
         user_id: req.user.id,
         title,
@@ -33,6 +33,9 @@ const postController = {
 
       const postId = await Post.create(postData);
 
+      // 🆕 NOTIFY ADMINS ABOUT NEW POST
+      await postController._notifyAdminsNewPost(postId, postData, req.user);
+
       res.status(201).json({
         success: true,
         message: 'Post created successfully!',
@@ -44,6 +47,50 @@ const postController = {
         success: false,
         error: 'Server error creating post'
       });
+    }
+  },
+
+  // 🆕 NOTIFY ADMINS ABOUT NEW POST CREATION
+  _notifyAdminsNewPost: async (postId, postData, user) => {
+    try {
+      const adminUsers = await db('users').where('role', 'admin').select('id', 'email', 'first_name');
+      const currentTime = new Date();
+      const notificationsToInsert = [];
+
+      // Get category name for notification
+      const category = await db('categories').where('id', postData.category_id).select('name').first();
+      const categoryName = category ? category.name : 'Unknown Category';
+
+      for (const admin of adminUsers) {
+        const notificationData = {
+          user_id: admin.id,
+          title: `New ${postData.type} Post Created`,
+          message: `User ${user.first_name} ${user.last_name} created a new ${postData.type} post in ${categoryName}: "${postData.title}"`,
+          type: 'new_post',
+          metadata: JSON.stringify({
+            post_id: postId,
+            post_title: postData.title,
+            post_type: postData.type,
+            category_id: postData.category_id,
+            category_name: categoryName,
+            barangay_id: postData.barangay_id,
+            created_by_user_id: user.id,
+            created_by_user_name: `${user.first_name} ${user.last_name}`,
+            created_at: currentTime
+          }),
+          is_read: false,
+          created_at: currentTime
+        };
+        notificationsToInsert.push(notificationData);
+      }
+
+      if (notificationsToInsert.length > 0) {
+        await db('notifications').insert(notificationsToInsert);
+      }
+
+      console.log(`✅ Notified ${adminUsers.length} admins about new post ${postId}`);
+    } catch (error) {
+      console.error('Error notifying admins about new post:', error);
     }
   },
 
@@ -78,77 +125,77 @@ const postController = {
   },
 
   // Update post
- // Update post
-updatePost: async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, description, type, category_id, barangay_id, purok_id, color, contact_info, remove_photo } = req.body;
+  updatePost: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, description, type, category_id, barangay_id, purok_id, color, contact_info, remove_photo } = req.body;
 
-    // Validate required fields
-    if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
-      return res.status(400).json({
+      // Validate required fields
+      if (!title || !description || !type || !category_id || !barangay_id || !contact_info) {
+        return res.status(400).json({
+          success: false,
+          error: 'All required fields must be filled'
+        });
+      }
+
+      // First, check if post exists and belongs to user
+      const existingPost = await Post.getById(id);
+      
+      if (!existingPost) {
+        return res.status(404).json({
+          success: false,
+          error: 'Post not found'
+        });
+      }
+
+      if (existingPost.user_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied. You can only edit your own posts.'
+        });
+      }
+
+      const updateData = {
+        title,
+        description,
+        type,
+        category_id: parseInt(category_id),
+        barangay_id: parseInt(barangay_id),
+        purok_id: purok_id ? parseInt(purok_id) : null,
+        color: color || '',
+        contact_info,
+        updated_at: new Date()
+      };
+
+      // Handle photo updates
+      if (req.file) {
+        // New photo uploaded
+        updateData.photo = req.file.filename;
+      } else if (remove_photo === 'true') {
+        // Photo removal requested
+        updateData.photo = null;
+      }
+      // If neither, keep the existing photo
+
+      const updated = await Post.update(id, updateData);
+
+      if (updated) {
+        res.json({
+          success: true,
+          message: 'Post updated successfully!'
+        });
+      } else {
+        throw new Error('Failed to update post');
+      }
+    } catch (error) {
+      console.error('Update post error:', error);
+      res.status(500).json({
         success: false,
-        error: 'All required fields must be filled'
+        error: 'Server error updating post'
       });
     }
+  },
 
-    // First, check if post exists and belongs to user
-    const existingPost = await Post.getById(id);
-    
-    if (!existingPost) {
-      return res.status(404).json({
-        success: false,
-        error: 'Post not found'
-      });
-    }
-
-    if (existingPost.user_id !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied. You can only edit your own posts.'
-      });
-    }
-
-    const updateData = {
-      title,
-      description,
-      type,
-      category_id: parseInt(category_id),
-      barangay_id: parseInt(barangay_id),
-      purok_id: purok_id ? parseInt(purok_id) : null,
-      color: color || '',
-      contact_info,
-      updated_at: new Date()
-    };
-
-    // Handle photo updates
-    if (req.file) {
-      // New photo uploaded
-      updateData.photo = req.file.filename;
-    } else if (remove_photo === 'true') {
-      // Photo removal requested
-      updateData.photo = null;
-    }
-    // If neither, keep the existing photo
-
-    const updated = await Post.update(id, updateData);
-
-    if (updated) {
-      res.json({
-        success: true,
-        message: 'Post updated successfully!'
-      });
-    } else {
-      throw new Error('Failed to update post');
-    }
-  } catch (error) {
-    console.error('Update post error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Server error updating post'
-    });
-  }
-},
   // Delete post - WITH MONTHLY LIMIT CHECK AND USER NOTIFICATION
   deletePost: async (req, res) => {
     try {
@@ -247,7 +294,7 @@ updatePost: async (req, res) => {
       const [categories, barangays, puroks] = await Promise.all([
         Category.getAll(),
         Barangay.getAll(),
-         Purok.getAll() 
+        Purok.getAll() 
       ]);
 
       res.json({ success: true, categories, barangays, puroks });
